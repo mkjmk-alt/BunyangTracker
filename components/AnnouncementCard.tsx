@@ -1,5 +1,6 @@
 import { StatusBadge } from "./StatusBadge";
 import { format } from "date-fns";
+import { getDynamicStatus } from "@/lib/utils";
 import Link from "next/link";
 
 interface AnnouncementCardProps {
@@ -20,6 +21,11 @@ interface AnnouncementCardProps {
 }
 
 export function AnnouncementCard({ project, announcement }: AnnouncementCardProps) {
+  const { status, displayStatus } = getDynamicStatus(
+    announcement.applyStartDate,
+    announcement.applyEndDate
+  );
+
   return (
     <Link 
       href={`/projects/${project.slug}`}
@@ -29,7 +35,7 @@ export function AnnouncementCard({ project, announcement }: AnnouncementCardProp
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-xs font-semibold text-primary uppercase tracking-wider">{announcement.supplyType}</span>
-            <StatusBadge status={announcement.status} label={announcement.displayStatus} />
+            <StatusBadge status={status} label={displayStatus} />
           </div>
           <h4 className="text-lg font-bold group-hover:text-primary transition-colors">{project.name}</h4>
         </div>

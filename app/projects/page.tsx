@@ -1,10 +1,11 @@
-import { and, eq, desc, inArray, or, ilike, not } from "drizzle-orm";
+import { and, eq, desc, inArray, or, ilike, not, gt, lt, lte, gte, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { announcements, housingProjects } from "@/lib/db/schema";
 import { FilterSection } from "../../components/FilterSection";
 import { StatusBadge } from "../../components/StatusBadge";
 import { SyncProgressBar } from "../components/SyncProgressBar";
 import { BookmarkCheckbox } from "../../components/BookmarkCheckbox";
+import { getKstDateString, getDynamicStatus } from "@/lib/utils";
 import Link from "next/link";
 
 const TYPE_GROUPS = {
@@ -12,11 +13,31 @@ const TYPE_GROUPS = {
   RENT: ["행복주택", "국민임대", "영구임대", "공공임대", "공공지원민간임대", "민간임대"]
 };
 
-async function getAnnouncements(filters: { status?: string; type?: string; category?: string; q?: string }) {
+async function getAnnouncements(
+  filters: { status?: string; type?: string; category?: string; q?: string },
+  kstToday: string
+) {
   const whereConditions = [];
   
   if (filters.status && filters.status !== "ALL") {
-    whereConditions.push(eq(announcements.status, filters.status));
+    if (filters.status === "UPCOMING") {
+      whereConditions.push(gt(announcements.applyStartDate, kstToday));
+    } else if (filters.status === "CLOSED") {
+      whereConditions.push(lt(announcements.applyEndDate, kstToday));
+    } else if (filters.status === "OPEN") {
+      whereConditions.push(
+        and(
+          or(
+            isNull(announcements.applyStartDate),
+            lte(announcements.applyStartDate, kstToday)
+          ),
+          or(
+            isNull(announcements.applyEndDate),
+            gte(announcements.applyEndDate, kstToday)
+          )
+        )
+      );
+    }
   }
   
   if (filters.category === "SALE") {
@@ -69,7 +90,8 @@ export default async function ProjectsPage({
   searchParams: Promise<{ status?: string; type?: string; category?: string; region?: string; q?: string }> 
 }) {
   const { status = "ALL", type = "ALL", category = "SALE", region = "ALL", q = "" } = await searchParams;
-  const allAnns = await getAnnouncements({ status, type, category, q });
+  const kstToday = getKstDateString();
+  const allAnns = await getAnnouncements({ status, type, category, q }, kstToday);
 
   const filteredAnns = region === "ALL" 
     ? allAnns 
@@ -128,22 +150,11 @@ export default async function ProjectsPage({
               </thead>
               <tbody className="divide-y">
                 {filteredAnns.map((ann: any) => {
-                  const now = new Date().toISOString().split('T')[0];
-                  let currentStatus = ann.status;
-                  let currentDisplayStatus = ann.displayStatus;
-
-                  if (ann.applyStartDate && ann.applyEndDate) {
-                    if (ann.applyStartDate > now) {
-                      currentStatus = 'UPCOMING';
-                      currentDisplayStatus = '공고예정';
-                    } else if (ann.applyEndDate < now) {
-                      currentStatus = 'CLOSED';
-                      currentDisplayStatus = '접수마감';
-                    } else {
-                      currentStatus = 'OPEN';
-                      currentDisplayStatus = '접수중';
-                    }
-                  }
+                  const { status: currentStatus, displayStatus: currentDisplayStatus } = getDynamicStatus(
+                    ann.applyStartDate,
+                    ann.applyEndDate,
+                    kstToday
+                  );
 
                   return (
                     <tr key={ann.id} className="hover:bg-accent/5 transition-colors group">

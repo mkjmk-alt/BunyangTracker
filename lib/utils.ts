@@ -17,3 +17,41 @@ export function getApplyHomeUrl(houseManageNo: string, pblancNo: string, supplyT
 
   return `https://www.applyhome.co.kr/ai/aia/${endpoint}?houseManageNo=${houseManageNo}&pblancNo=${pblancNo}`;
 }
+
+export function getKstDateString() {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0];
+}
+
+export function getDynamicStatus(
+  applyStartDate: string | null | undefined, 
+  applyEndDate: string | null | undefined, 
+  kstToday?: string
+) {
+  const today = kstToday || getKstDateString();
+  
+  if (!applyStartDate || !applyEndDate) {
+    return {
+      status: "OPEN" as const,
+      displayStatus: "접수중"
+    };
+  }
+
+  if (applyStartDate > today) {
+    return {
+      status: "UPCOMING" as const,
+      displayStatus: "공고예정"
+    };
+  }
+
+  if (applyEndDate < today) {
+    return {
+      status: "CLOSED" as const,
+      displayStatus: "접수마감"
+    };
+  }
+
+  return {
+    status: "OPEN" as const,
+    displayStatus: "접수중"
+  };
+}

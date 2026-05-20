@@ -2,7 +2,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { db } from "@/lib/db";
 import { housingProjects, announcements, announcementUnits, rawSourcePayloads } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { getApplyHomeUrl } from "@/lib/utils";
+import { getApplyHomeUrl, getDynamicStatus } from "@/lib/utils";
 import { notFound } from "next/navigation";
 
 async function getProjectDetails(slug: string) {
@@ -122,6 +122,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   }
 
   const latestAnn = project.announcements[0];
+  const { status: currentStatus, displayStatus: currentDisplayStatus } = getDynamicStatus(
+    latestAnn?.applyStartDate,
+    latestAnn?.applyEndDate
+  );
 
   return (
     <main className="container mx-auto py-8 px-4 md:px-6">
@@ -133,7 +137,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               <span className="text-xs font-bold text-primary uppercase px-2 py-1 bg-primary/10 rounded">
                 {latestAnn?.supplyType || "APT"}
               </span>
-              <StatusBadge status={latestAnn?.status as any} label={latestAnn?.displayStatus} />
+              <StatusBadge status={currentStatus} label={currentDisplayStatus} />
             </div>
             <h1 className="text-4xl font-extrabold tracking-tight mb-2">{project.name}</h1>
             <p className="text-lg text-muted-foreground">{project.address}</p>

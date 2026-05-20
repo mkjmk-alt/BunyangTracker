@@ -2,11 +2,26 @@ import { KpiCard } from "@/components/KpiCard";
 import { AnnouncementCard } from "@/components/AnnouncementCard";
 import { db } from "@/lib/db";
 import { announcements, housingProjects, changeEvents } from "@/lib/db/schema";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, sql, and, or, lte, gte, isNull } from "drizzle-orm";
+import { getKstDateString } from "@/lib/utils";
 import Link from "next/link";
 
-async function getStats() {
-  const [newAnnCount] = await db.select({ count: sql<number>`count(*)` }).from(announcements).where(eq(announcements.status, "OPEN"));
+async function getStats(kstToday: string) {
+  const [newAnnCount] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(announcements)
+    .where(
+      and(
+        or(
+          isNull(announcements.applyStartDate),
+          lte(announcements.applyStartDate, kstToday)
+        ),
+        or(
+          isNull(announcements.applyEndDate),
+          gte(announcements.applyEndDate, kstToday)
+        )
+      )
+    );
   const [changeCount] = await db.select({ count: sql<number>`count(*)` }).from(changeEvents);
   
   return {
@@ -27,7 +42,8 @@ async function getRecentAnnouncements() {
 }
 
 export default async function DashboardPage() {
-  const stats = await getStats();
+  const kstToday = getKstDateString();
+  const stats = await getStats(kstToday);
   const recentAnns = await getRecentAnnouncements();
 
   return (

@@ -117,7 +117,7 @@ export class LHApiProvider implements SourceProvider<LHAnnouncement> {
   }
 
   private calculateStatus(raw: LHAnnouncement): "UPCOMING" | "OPEN" | "CLOSED" {
-    const now = format(new Date(), "yyyy-MM-dd");
+    const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0];
     const end = raw.CLSG_DT ? raw.CLSG_DT.replace(/\./g, '-') : null;
     const start = raw.PAN_NT_ST_DT ? raw.PAN_NT_ST_DT.replace(/\./g, '-') : null;
     

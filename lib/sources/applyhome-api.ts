@@ -213,7 +213,7 @@ export class ApplyHomeApiProvider implements SourceProvider<ApplyHomeApt> {
   }
 
   private calculateStatus(raw: any): "UPCOMING" | "OPEN" | "CLOSED" {
-    const now = format(new Date(), "yyyy-MM-dd");
+    const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0];
     const startDate = raw.RCEPT_BGNDE || raw.SUBSCRPT_RCEPT_BGNDE;
     const endDate = raw.RCEPT_ENDDE || raw.SUBSCRPT_RCEPT_ENDDE;
     
