@@ -6,6 +6,9 @@ import { LHApiProvider } from "@/lib/sources/lh-api";
 import { Ingester } from "@/lib/pipeline/ingester";
 import { eq } from "drizzle-orm";
 
+export const maxDuration = 60; // Set Vercel function execution timeout to 60 seconds (Hobby plan max)
+
+
 export async function GET(request: Request) {
   // 1. 보안 체크 (Vercel Cron 또는 Admin Secret)
   const authHeader = request.headers.get("authorization");
@@ -13,6 +16,9 @@ export async function GET(request: Request) {
     // Skip auth in dev if needed, but for now strict
     // return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const { searchParams } = new URL(request.url);
+  const perPage = parseInt(searchParams.get("perPage") || "20");
 
   const providers = [
     { instance: new ApplyHomeApiProvider(), label: "청약홈 (민영/공공분양)" },
@@ -49,7 +55,7 @@ export async function GET(request: Request) {
       }).returning();
 
       // 4. 데이터 패치 및 처리
-      const items = await provider.fetchIndex({ perPage: 50 }); // Fetch top items
+      const items = await provider.fetchIndex({ perPage }); // Fetch top items
       let normalizedCount = 0;
       let upsertedCount = 0;
 
