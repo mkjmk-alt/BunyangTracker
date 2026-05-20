@@ -14,8 +14,6 @@ export class LHApiProvider implements SourceProvider<LHAnnouncement> {
     
     console.log(`[LH] Starting public housing fetch (Page ${page})...`);
 
-    const allResults: LHAnnouncement[] = [];
-    
     // Categories: 05(Sale), 06(New Marriage), 31(Rent/Happy)
     // LH usually needs date filters to return results
     const today = new Date();
@@ -26,7 +24,7 @@ export class LHApiProvider implements SourceProvider<LHAnnouncement> {
 
     const categories = ["05", "06", "31"];
 
-    for (const cat of categories) {
+    const promises = categories.map(async (cat) => {
       try {
         const params = new URLSearchParams({
           serviceKey: apiKey.trim(),
@@ -50,7 +48,7 @@ export class LHApiProvider implements SourceProvider<LHAnnouncement> {
         } catch (e) {
           console.error(`[LH] Failed to parse JSON for cat ${cat}.`);
           console.error(`[LH] Raw response (first 300 chars): ${text.substring(0, 300)}`);
-          continue;
+          return [];
         }
 
         // Corrected path based on LH API JSON structure: [ { "dsList": [...] } ]
@@ -59,7 +57,7 @@ export class LHApiProvider implements SourceProvider<LHAnnouncement> {
 
         console.log(`[LH] Category ${cat}: Received ${items.length} items`);
 
-        const parsed = items.map((item: any) => {
+        return items.map((item: any) => {
           try {
             return LHAnnouncementSchema.parse(item);
           } catch (e: any) {
@@ -67,14 +65,14 @@ export class LHApiProvider implements SourceProvider<LHAnnouncement> {
             return null;
           }
         }).filter(Boolean);
-
-        allResults.push(...parsed);
       } catch (error: any) {
         console.error(`[LH] Error fetching category ${cat}:`, error.message);
+        return [];
       }
-    }
+    });
 
-    return allResults;
+    const results = await Promise.all(promises);
+    return results.flat() as LHAnnouncement[];
   }
 
   async fetchDetail(id: string): Promise<LHAnnouncement> {

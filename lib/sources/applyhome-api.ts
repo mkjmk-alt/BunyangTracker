@@ -33,9 +33,7 @@ export class ApplyHomeApiProvider implements SourceProvider<ApplyHomeApt> {
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
     const dateStr = oneYearAgo.toISOString().split('T')[0];
 
-    const allResults: ApplyHomeApt[] = [];
-
-    for (const [type, operation] of Object.entries(ENDPOINTS)) {
+    const promises = Object.entries(ENDPOINTS).map(async ([type, operation]) => {
       try {
         const params = new URLSearchParams({
           page: page.toString(),
@@ -59,7 +57,7 @@ export class ApplyHomeApiProvider implements SourceProvider<ApplyHomeApt> {
 
         console.log(`[ApplyHome] ${type}: Received ${items.length} items`);
 
-        const parsed = items.map((item: any) => {
+        return items.map((item: any) => {
           try {
             const normalizedItem = {
               ...item,
@@ -72,14 +70,14 @@ export class ApplyHomeApiProvider implements SourceProvider<ApplyHomeApt> {
             return null;
           }
         }).filter(Boolean);
-
-        allResults.push(...parsed);
       } catch (error: any) {
         console.error(`[ApplyHome] Error fetching ${type}:`, error.message);
+        return [];
       }
-    }
+    });
 
-    return allResults;
+    const results = await Promise.all(promises);
+    return results.flat() as ApplyHomeApt[];
   }
 
   async fetchDetail(id: string): Promise<ApplyHomeApt> {
