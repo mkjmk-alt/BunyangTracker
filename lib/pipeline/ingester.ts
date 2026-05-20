@@ -60,8 +60,35 @@ export class Ingester {
 
     // 4. Announcement Upsert & Diff
     try {
-      // ApplyHome specific logic: Discover attachment metadata if missing
-      if (normalized.externalSourceKey.startsWith("applyhome") && (!normalized.atchmnflSeqNo || !normalized.atchmnflSn)) {
+      // Check if announcement already exists first to optimize performance
+      const existingAnn = await db.query.announcements.findFirst({
+        where: eq(announcements.announceNo, normalized.announceNo),
+      });
+
+      let shouldFetchAttachments = true;
+      let shouldFetchUnits = true;
+
+      if (existingAnn) {
+        // If we already have attachment metadata, reuse it and skip scraping
+        if (existingAnn.atchmnflSeqNo && existingAnn.atchmnflSeqNo !== "NONE") {
+          normalized.atchmnflSeqNo = existingAnn.atchmnflSeqNo;
+          normalized.atchmnflSn = existingAnn.atchmnflSn;
+          shouldFetchAttachments = false;
+        }
+
+        // Check if we already have units in the database
+        const [existingUnits] = await db
+          .select({ id: announcementUnits.id })
+          .from(announcementUnits)
+          .where(eq(announcementUnits.announcementId, existingAnn.id))
+          .limit(1);
+        if (existingUnits) {
+          shouldFetchUnits = false;
+        }
+      }
+
+      // ApplyHome specific logic: Discover attachment metadata if missing and required
+      if (shouldFetchAttachments && normalized.externalSourceKey.startsWith("applyhome") && (!normalized.atchmnflSeqNo || !normalized.atchmnflSn)) {
         const { ApplyHomeApiProvider } = await import("../sources/applyhome-api");
         const provider = new ApplyHomeApiProvider();
         const attachments = await provider.discoverAttachments(normalized.housingMgmtNo, normalized.announceNo, normalized.pblancUrl || undefined, normalized.supplyType);
@@ -71,10 +98,6 @@ export class Ingester {
           console.log(`[Ingester] Discovered attachments for ${normalized.name}: ${attachments.seqNo}, ${attachments.sn}`);
         }
       }
-
-      const existingAnn = await db.query.announcements.findFirst({
-        where: eq(announcements.announceNo, normalized.announceNo),
-      });
 
       console.log(`[Ingester] Upserting announcement: ${normalized.announceNo} for project: ${project.id}`);
 
@@ -113,12 +136,12 @@ export class Ingester {
       }).returning();
 
       if (!announcement) {
-        console.error(`[Ingester] Upsert returned no result for announcement: ${normalized.announceNo}`);
+        console.error(`[Ingester] Failed to upsert announcement: ${normalized.announceNo}`);
         return;
       }
 
-      // 4.5. Fetch and Save Units
-      if ((this.provider as any).fetchUnits) {
+      // 4.5. Fetch and Save Units (only if we don't have them yet or it's a new announcement)
+      if (shouldFetchUnits && (this.provider as any).fetchUnits) {
         console.log(`[Ingester] Fetching units for: ${normalized.announceNo}`);
         const rawItem = (rawPayload.payload as any);
         const units = await (this.provider as any).fetchUnits(
