@@ -1,6 +1,6 @@
 import { StatusBadge } from "@/components/StatusBadge";
 import { db } from "@/lib/db";
-import { housingProjects, announcements, announcementUnits } from "@/lib/db/schema";
+import { housingProjects, announcements, announcementUnits, rawSourcePayloads } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getApplyHomeUrl } from "@/lib/utils";
 import { notFound } from "next/navigation";
@@ -17,6 +17,93 @@ async function getProjectDetails(slug: string) {
       }
     }
   });
+
+  if (!project || project.announcements.length === 0) {
+    return project;
+  }
+
+  const latestAnn = project.announcements[0];
+  
+  if (latestAnn && latestAnn.externalSourceKey && latestAnn.externalSourceKey.startsWith("applyhome_api")) {
+    const hasUnits = latestAnn.units && latestAnn.units.length > 0;
+    // Check if attachment metadata exists and is not null
+    const hasAttachments = latestAnn.atchmnflSeqNo !== null && latestAnn.atchmnflSeqNo !== undefined;
+
+    if (!hasUnits || !hasAttachments) {
+      console.log(`[LazyLoad] Details missing for ${project.name}. Fetching on-demand...`);
+      try {
+        const { ApplyHomeApiProvider } = await import("@/lib/sources/applyhome-api");
+        const provider = new ApplyHomeApiProvider();
+        
+        let updatedSeqNo = latestAnn.atchmnflSeqNo;
+        let updatedSn = latestAnn.atchmnflSn;
+
+        // 1. Discover attachments if missing
+        if (!hasAttachments) {
+          console.log(`[LazyLoad] Scraping attachments for ${project.name}...`);
+          const attachments = await provider.discoverAttachments(
+            project.housingMgmtNo,
+            latestAnn.announceNo,
+            latestAnn.pblancUrl || undefined,
+            latestAnn.supplyType
+          );
+          if (attachments.seqNo && attachments.sn) {
+            updatedSeqNo = attachments.seqNo;
+            updatedSn = attachments.sn;
+            
+            await db.update(announcements)
+              .set({
+                atchmnflSeqNo: updatedSeqNo,
+                atchmnflSn: updatedSn,
+                updatedAt: new Date(),
+              })
+              .where(eq(announcements.id, latestAnn.id));
+            
+            latestAnn.atchmnflSeqNo = updatedSeqNo;
+            latestAnn.atchmnflSn = updatedSn;
+            console.log(`[LazyLoad] Saved attachments for ${project.name}: ${updatedSeqNo}, ${updatedSn}`);
+          }
+        }
+
+        // 2. Fetch units if missing
+        if (!hasUnits) {
+          const rawPayload = latestAnn.rawPayloadId 
+            ? await db.query.rawSourcePayloads.findFirst({
+                where: eq(rawSourcePayloads.id, latestAnn.rawPayloadId),
+              })
+            : null;
+          const type = (rawPayload?.payload as any)?._type || "APT";
+
+          console.log(`[LazyLoad] Fetching units for ${project.name} (type: ${type})...`);
+          const units = await provider.fetchUnits(
+            project.housingMgmtNo,
+            latestAnn.announceNo,
+            type
+          );
+
+          if (units && units.length > 0) {
+            // Delete existing units just in case
+            await db.delete(announcementUnits)
+              .where(eq(announcementUnits.announcementId, latestAnn.id));
+              
+            const insertedUnits = await db.insert(announcementUnits)
+              .values(
+                units.map((u: any) => ({
+                  announcementId: latestAnn.id,
+                  ...u,
+                }))
+              )
+              .returning();
+            
+            latestAnn.units = insertedUnits as any[];
+            console.log(`[LazyLoad] Saved ${units.length} units for ${project.name}`);
+          }
+        }
+      } catch (err) {
+        console.error(`[LazyLoad] Error fetching lazy loaded details:`, err);
+      }
+    }
+  }
 
   return project;
 }
