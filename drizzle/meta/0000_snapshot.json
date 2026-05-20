@@ -1,0 +1,1084 @@
+{
+  "id": "26307ff3-4a38-45fa-8c8f-1e9bb824c89a",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.announcement_snapshots": {
+      "name": "announcement_snapshots",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "announcement_id": {
+          "name": "announcement_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sync_run_id": {
+          "name": "sync_run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "snapshot_data": {
+          "name": "snapshot_data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "snapshotted_at": {
+          "name": "snapshotted_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "announcement_snapshots_announcement_id_announcements_id_fk": {
+          "name": "announcement_snapshots_announcement_id_announcements_id_fk",
+          "tableFrom": "announcement_snapshots",
+          "tableTo": "announcements",
+          "columnsFrom": [
+            "announcement_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "announcement_snapshots_sync_run_id_source_sync_runs_id_fk": {
+          "name": "announcement_snapshots_sync_run_id_source_sync_runs_id_fk",
+          "tableFrom": "announcement_snapshots",
+          "tableTo": "source_sync_runs",
+          "columnsFrom": [
+            "sync_run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.announcement_units": {
+      "name": "announcement_units",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "announcement_id": {
+          "name": "announcement_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_type": {
+          "name": "unit_type",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "supply_area": {
+          "name": "supply_area",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "exclusive_area": {
+          "name": "exclusive_area",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "general_supply": {
+          "name": "general_supply",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "special_supply": {
+          "name": "special_supply",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "price_min": {
+          "name": "price_min",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "price_max": {
+          "name": "price_max",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "floor_min": {
+          "name": "floor_min",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "floor_max": {
+          "name": "floor_max",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "announcement_units_announcement_id_announcements_id_fk": {
+          "name": "announcement_units_announcement_id_announcements_id_fk",
+          "tableFrom": "announcement_units",
+          "tableTo": "announcements",
+          "columnsFrom": [
+            "announcement_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.announcements": {
+      "name": "announcements",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "announce_no": {
+          "name": "announce_no",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "supply_type": {
+          "name": "supply_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "announce_date": {
+          "name": "announce_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "apply_start_date": {
+          "name": "apply_start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "apply_end_date": {
+          "name": "apply_end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "winner_announce_date": {
+          "name": "winner_announce_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contract_start_date": {
+          "name": "contract_start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contract_end_date": {
+          "name": "contract_end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "move_in_date": {
+          "name": "move_in_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_supply_households": {
+          "name": "total_supply_households",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "general_supply_households": {
+          "name": "general_supply_households",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "special_supply_households": {
+          "name": "special_supply_households",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_provider_id": {
+          "name": "source_provider_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "external_source_key": {
+          "name": "external_source_key",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "raw_payload_id": {
+          "name": "raw_payload_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "latest_snapshot_id": {
+          "name": "latest_snapshot_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "announcements_project_id_housing_projects_id_fk": {
+          "name": "announcements_project_id_housing_projects_id_fk",
+          "tableFrom": "announcements",
+          "tableTo": "housing_projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "announcements_source_provider_id_source_providers_id_fk": {
+          "name": "announcements_source_provider_id_source_providers_id_fk",
+          "tableFrom": "announcements",
+          "tableTo": "source_providers",
+          "columnsFrom": [
+            "source_provider_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "announcements_raw_payload_id_raw_source_payloads_id_fk": {
+          "name": "announcements_raw_payload_id_raw_source_payloads_id_fk",
+          "tableFrom": "announcements",
+          "tableTo": "raw_source_payloads",
+          "columnsFrom": [
+            "raw_payload_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "announcements_announce_no_unique": {
+          "name": "announcements_announce_no_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "announce_no"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.change_events": {
+      "name": "change_events",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "event_type": {
+          "name": "event_type",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_type": {
+          "name": "entity_type",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entity_id": {
+          "name": "entity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sync_run_id": {
+          "name": "sync_run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "previous_data": {
+          "name": "previous_data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "current_data": {
+          "name": "current_data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "diff_summary": {
+          "name": "diff_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "severity": {
+          "name": "severity",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "detected_at": {
+          "name": "detected_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "notified_at": {
+          "name": "notified_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "change_events_sync_run_id_source_sync_runs_id_fk": {
+          "name": "change_events_sync_run_id_source_sync_runs_id_fk",
+          "tableFrom": "change_events",
+          "tableTo": "source_sync_runs",
+          "columnsFrom": [
+            "sync_run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.housing_projects": {
+      "name": "housing_projects",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "housing_mgmt_no": {
+          "name": "housing_mgmt_no",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "region_id": {
+          "name": "region_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "builder_name": {
+          "name": "builder_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "developer_name": {
+          "name": "developer_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_households": {
+          "name": "total_households",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_provider_id": {
+          "name": "source_provider_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "external_source_key": {
+          "name": "external_source_key",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "housing_projects_region_id_regions_id_fk": {
+          "name": "housing_projects_region_id_regions_id_fk",
+          "tableFrom": "housing_projects",
+          "tableTo": "regions",
+          "columnsFrom": [
+            "region_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "housing_projects_source_provider_id_source_providers_id_fk": {
+          "name": "housing_projects_source_provider_id_source_providers_id_fk",
+          "tableFrom": "housing_projects",
+          "tableTo": "source_providers",
+          "columnsFrom": [
+            "source_provider_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "housing_projects_housing_mgmt_no_unique": {
+          "name": "housing_projects_housing_mgmt_no_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "housing_mgmt_no"
+          ]
+        },
+        "housing_projects_slug_unique": {
+          "name": "housing_projects_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "slug"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.notification_deliveries": {
+      "name": "notification_deliveries",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "change_event_id": {
+          "name": "change_event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel": {
+          "name": "channel",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "notification_deliveries_change_event_id_change_events_id_fk": {
+          "name": "notification_deliveries_change_event_id_change_events_id_fk",
+          "tableFrom": "notification_deliveries",
+          "tableTo": "change_events",
+          "columnsFrom": [
+            "change_event_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.raw_source_payloads": {
+      "name": "raw_source_payloads",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "sync_run_id": {
+          "name": "sync_run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_id": {
+          "name": "provider_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_key": {
+          "name": "external_key",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload": {
+          "name": "payload",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fetched_at": {
+          "name": "fetched_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "is_processed": {
+          "name": "is_processed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "raw_source_payloads_sync_run_id_source_sync_runs_id_fk": {
+          "name": "raw_source_payloads_sync_run_id_source_sync_runs_id_fk",
+          "tableFrom": "raw_source_payloads",
+          "tableTo": "source_sync_runs",
+          "columnsFrom": [
+            "sync_run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "raw_source_payloads_provider_id_source_providers_id_fk": {
+          "name": "raw_source_payloads_provider_id_source_providers_id_fk",
+          "tableFrom": "raw_source_payloads",
+          "tableTo": "source_providers",
+          "columnsFrom": [
+            "provider_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.regions": {
+      "name": "regions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "sido": {
+          "name": "sido",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sigungu": {
+          "name": "sigungu",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "code": {
+          "name": "code",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sido_code": {
+          "name": "sido_code",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sigungu_code": {
+          "name": "sigungu_code",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "regions_code_unique": {
+          "name": "regions_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.source_providers": {
+      "name": "source_providers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        },
+        "config": {
+          "name": "config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "source_providers_name_unique": {
+          "name": "source_providers_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.source_sync_runs": {
+      "name": "source_sync_runs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "provider_id": {
+          "name": "provider_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_fetched": {
+          "name": "total_fetched",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "total_normalized": {
+          "name": "total_normalized",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "total_upserted": {
+          "name": "total_upserted",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "total_changed": {
+          "name": "total_changed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "total_errors": {
+          "name": "total_errors",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "error_summary": {
+          "name": "error_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "source_sync_runs_provider_id_source_providers_id_fk": {
+          "name": "source_sync_runs_provider_id_source_providers_id_fk",
+          "tableFrom": "source_sync_runs",
+          "tableTo": "source_providers",
+          "columnsFrom": [
+            "provider_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_follows": {
+      "name": "user_follows",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notify_schedule_change": {
+          "name": "notify_schedule_change",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        },
+        "notify_musoonwi": {
+          "name": "notify_musoonwi",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        },
+        "notify_new_announcement": {
+          "name": "notify_new_announcement",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_follows_project_id_housing_projects_id_fk": {
+          "name": "user_follows_project_id_housing_projects_id_fk",
+          "tableFrom": "user_follows",
+          "tableTo": "housing_projects",
+          "columnsFrom": [
+            "project_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

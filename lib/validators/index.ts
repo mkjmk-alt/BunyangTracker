@@ -1,0 +1,99 @@
+import { z } from "zod";
+
+// 청약홈 API 응답 스케마 (APT 분양정보)
+export const ApplyHomeAptSchema = z.object({
+  HOUSE_MANAGE_NO: z.string(),
+  PBLANC_NO: z.string(),
+  HOUSE_NM: z.string(),
+  BSNS_MBY_NM: z.string().optional().nullable(),
+  CNSTRCT_ENTRPS_NM: z.string().optional().nullable(),
+  HMPG_ADRES: z.string().optional().nullable(),
+  RCRIT_PBLANC_DE: z.string().optional().nullable(),
+  RCEPT_BGNDE: z.string().optional().nullable(),
+  RCEPT_ENDDE: z.string().optional().nullable(),
+  PRZWNER_PRESNATN_DE: z.string().optional().nullable(),
+  CNTRCT_CNCLS_BGNDE: z.string().optional().nullable(),
+  CNTRCT_CNCLS_ENDDE: z.string().optional().nullable(),
+  HSSPLY_ADRES: z.string().optional().nullable(),
+  HSSPLY_ZIP: z.string().optional().nullable(),
+  TOT_SUPLY_HSHLDCO: z.coerce.number().optional().nullable(), // 자동 형변환 적용
+  MVN_PREARNGE_YM: z.string().optional().nullable(),
+  SUBSCRPT_AREA_CODE: z.string().optional().nullable(),
+  HOUSE_SECD_NM: z.string().optional().nullable(),
+  SUBSCRPT_RCEPT_BGNDE: z.string().optional().nullable(),
+  SUBSCRPT_RCEPT_ENDDE: z.string().optional().nullable(),
+  PBLANC_URL: z.string().optional().nullable(),
+  ATCHMNFL_SEQ_NO: z.string().optional().nullable(),
+  ATCHMNFL_SN: z.string().optional().nullable(),
+});
+
+export type ApplyHomeApt = z.infer<typeof ApplyHomeAptSchema>;
+
+// 정규화된 공고 데이터 타입
+export const NormalizedAnnouncementSchema = z.object({
+  housingMgmtNo: z.string(),
+  announceNo: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  supplyType: z.string(),
+  status: z.enum(["UPCOMING", "OPEN", "CLOSED", "CANCELLED", "CORRECTED"]),
+  displayStatus: z.string().nullable().optional(),
+  announceDate: z.string().nullable(),
+  applyStartDate: z.string().nullable(),
+  applyEndDate: z.string().nullable(),
+  winnerAnnounceDate: z.string().nullable(),
+  contractStartDate: z.string().nullable(),
+  contractEndDate: z.string().nullable(),
+  moveInDate: z.string().nullable(),
+  address: z.string().nullable(),
+  builderName: z.string().nullable(),
+  developerName: z.string().nullable(),
+  totalHouseholds: z.number().nullable(),
+  regionCode: z.string().nullable(),
+  externalSourceKey: z.string(),
+  pblancUrl: z.string().nullable().optional(),
+  homepageAdres: z.string().nullable().optional(),
+  atchmnflSeqNo: z.string().nullable().optional(),
+  atchmnflSn: z.string().nullable().optional(),
+  units: z.array(z.object({
+    unitType: z.string(),
+    supplyArea: z.number().nullable(),
+    exclusiveArea: z.number().nullable(),
+    generalSupply: z.number().nullable(),
+    specialSupply: z.number().nullable(),
+    priceMin: z.number().nullable(),
+    priceMax: z.number().nullable(),
+  })).optional(),
+});
+
+export type NormalizedAnnouncement = z.infer<typeof NormalizedAnnouncementSchema>;
+
+// API 쿼리 파라미터 스케마
+export const ProjectQuerySchema = z.object({
+  region: z.string().optional(),
+  supplyType: z.string().optional(),
+  status: z.string().optional(),
+  q: z.string().optional(),
+  page: z.coerce.number().default(1),
+  pageSize: z.coerce.number().default(20),
+  sort: z.string().default("announceDate.desc"),
+});
+
+export type ProjectQuery = z.infer<typeof ProjectQuerySchema>;
+
+// LH API 응답 스케마
+export const LHAnnouncementSchema = z.object({
+  PAN_ID: z.string(),
+  PAN_NM: z.string(),
+  AIS_TP_CD_NM: z.string().optional().nullable(),
+  PAN_SS: z.string().optional().nullable(),
+  PAN_NT_ST_DT: z.string().optional().nullable(),
+  CLSG_DT: z.string().optional().nullable(),
+  HMPG_ADRES: z.string().optional().nullable(),
+  DTL_URL: z.string().optional().nullable(),
+  AIS_TP_CD: z.string().optional().nullable(),
+  UPP_AIS_TP_CD: z.string().optional().nullable(),
+  CNP_CD_NM: z.string().optional().nullable(),
+});
+
+export type LHAnnouncement = z.infer<typeof LHAnnouncementSchema>;
