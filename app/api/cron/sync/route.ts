@@ -144,16 +144,63 @@ export async function GET(request: Request) {
         homepageAdres: normalized.homepageAdres,
         externalSourceKey: normalized.externalSourceKey,
         fingerprint,
+        housingMgmtNo: normalized.housingMgmtNo,
+        atchmnflSeqNo: null as string | null,
+        atchmnflSn: null as string | null,
       });
     }
 
     const annValues = Array.from(annMap.values());
+
+    // ─── 6a. Auto-discover attachments for new/incomplete ApplyHome announcements ───
+    try {
+      const existingAnns = await db.select({
+        announceNo: announcements.announceNo,
+        atchmnflSeqNo: announcements.atchmnflSeqNo,
+        atchmnflSn: announcements.atchmnflSn,
+      }).from(announcements);
+      const existingMap = new Map(existingAnns.map(a => [a.announceNo, a]));
+      
+      const provider = new ApplyHomeApiProvider();
+      
+      for (const ann of annValues) {
+        if (ann.externalSourceKey.startsWith("applyhome_api")) {
+          const existing = existingMap.get(ann.announceNo);
+          if (!existing || !existing.atchmnflSeqNo) {
+            console.log(`[FastSync] Auto-discovering attachments for announcement ${ann.announceNo}...`);
+            try {
+              const attachments = await provider.discoverAttachments(
+                ann.housingMgmtNo,
+                ann.announceNo,
+                ann.pblancUrl || undefined,
+                ann.supplyType
+              );
+              ann.atchmnflSeqNo = attachments.seqNo || "NONE";
+              ann.atchmnflSn = attachments.sn || "NONE";
+              console.log(`[FastSync] Discovered attachments for ${ann.announceNo}: seqNo=${ann.atchmnflSeqNo}, sn=${ann.atchmnflSn}`);
+            } catch (err: any) {
+              console.error(`[FastSync] Attachment discovery failed for ${ann.announceNo}:`, err.message);
+              ann.atchmnflSeqNo = "NONE";
+              ann.atchmnflSn = "NONE";
+            }
+          } else {
+            ann.atchmnflSeqNo = existing.atchmnflSeqNo;
+            ann.atchmnflSn = existing.atchmnflSn;
+          }
+        }
+      }
+    } catch (e: any) {
+      console.error(`[FastSync] Error in pre-discovery mapping:`, e.message);
+    }
+
     let upsertedCount = 0;
 
     // Batch upsert in chunks of 30 (avoid PG param limits)
     const CHUNK = 30;
     for (let i = 0; i < annValues.length; i += CHUNK) {
-      const chunk = annValues.slice(i, i + CHUNK);
+      const rawChunk = annValues.slice(i, i + CHUNK);
+      // Strip housingMgmtNo which is a non-column field
+      const chunk = rawChunk.map(({ housingMgmtNo, ...rest }) => rest);
       try {
         await db
           .insert(announcements)
