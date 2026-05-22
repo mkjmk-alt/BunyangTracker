@@ -4,9 +4,8 @@ import type { NextRequest } from "next/server";
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 1. Exclude the Cron Sync API and static assets from basic auth
+  // 1. Exclude static assets from basic auth
   if (
-    pathname.startsWith("/api/cron/sync") ||
     pathname.startsWith("/_next") ||
     pathname.includes(".") || // files like favicon.ico, logo.png
     pathname === "/favicon.ico"
@@ -17,11 +16,25 @@ export function middleware(req: NextRequest) {
   // 2. Load configured credentials (fallback to admin/dhfflavlr%404 if not set)
   const basicAuthUser = process.env.BASIC_AUTH_USER || "admin";
   const basicAuthPassword = process.env.BASIC_AUTH_PASSWORD || "dhfflavlr%404";
+  const cronSecret = process.env.CRON_SECRET;
 
   // 3. Inspect the standard HTTP Authorization header
   const authorizationHeader = req.headers.get("authorization");
 
-  if (authorizationHeader) {
+  // 4. Special handling for Vercel Cron Sync API
+  if (pathname.startsWith("/api/cron/sync")) {
+    // Allow Vercel Cron with Bearer token
+    if (cronSecret && authorizationHeader === `Bearer ${cronSecret}`) {
+      return NextResponse.next();
+    }
+    // Allow local development sync without CRON_SECRET
+    if (process.env.NODE_ENV === "development") {
+      return NextResponse.next();
+    }
+  }
+
+  // 5. Inspect standard HTTP Basic Authorization header
+  if (authorizationHeader && authorizationHeader.startsWith("Basic ")) {
     // Expected format: "Basic <base64Credentials>"
     const base64Value = authorizationHeader.split(" ")[1];
     if (base64Value) {
@@ -38,7 +51,7 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  // 4. Return HTTP 401 Unauthorized with WWW-Authenticate challenge header
+  // 6. Return HTTP 401 Unauthorized with WWW-Authenticate challenge header
   // This prompts the browser to show the native login dialog
   return new NextResponse("Access Denied: Authentication Required", {
     status: 401,
@@ -53,12 +66,8 @@ export function middleware(req: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - api/cron/sync (automated syncer)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
+     * Match all request paths except for static files and images
      */
-    "/((?!api/cron/sync|_next/static|_next/image|favicon.ico).*)",
+    "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
