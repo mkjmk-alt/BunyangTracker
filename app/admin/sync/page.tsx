@@ -39,7 +39,7 @@ export default async function AdminSyncPage() {
               {syncRuns.map((run) => (
                 <tr key={run.id} className="hover:bg-accent/5">
                   <td className="px-6 py-4 font-medium">
-                    {run.startedAt.toLocaleString("ko-KR")}
+                    {run.startedAt.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}
                   </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
