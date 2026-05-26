@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { db } from "@/lib/db";
 import { sourceSyncRuns, sourceProviders } from "@/lib/db/schema";
 import { desc } from "drizzle-orm";

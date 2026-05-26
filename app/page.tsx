@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { KpiCard } from "@/components/KpiCard";
 import { AnnouncementCard } from "@/components/AnnouncementCard";
 import { db } from "@/lib/db";

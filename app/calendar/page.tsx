@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { db } from "@/lib/db";
 import { announcements, housingProjects } from "@/lib/db/schema";
 import { and, gte, lte, eq } from "drizzle-orm";

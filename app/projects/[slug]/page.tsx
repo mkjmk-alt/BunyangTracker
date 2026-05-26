@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { StatusBadge } from "@/components/StatusBadge";
 import { db } from "@/lib/db";
 import { housingProjects, announcements, announcementUnits, rawSourcePayloads } from "@/lib/db/schema";

@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 export default function ChangesPage() {
   return (
     <main className="container mx-auto py-8 px-4 md:px-6">
