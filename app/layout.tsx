@@ -31,6 +31,7 @@ export default function RootLayout({
                 <Link href="/projects" className="transition-colors hover:text-primary">분양목록</Link>
                 <Link href="/calendar" className="transition-colors hover:text-primary">캘린더</Link>
                 <Link href="/changes" className="transition-colors hover:text-primary">변경이력</Link>
+                <Link href="/admin/sync" className="transition-colors hover:text-primary">수집관리</Link>
               </nav>
               <div className="flex items-center space-x-4">
                 <button className="hidden md:flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow transition-colors hover:bg-primary/90">
