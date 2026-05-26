@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const startTime = Date.now();
   const { searchParams } = new URL(request.url);
-  const perPage = parseInt(searchParams.get("perPage") || "10");
+  const perPage = parseInt(searchParams.get("perPage") || "80");
 
   try {
     // ─── 1. Register providers (parallel) ─────────────────────────
