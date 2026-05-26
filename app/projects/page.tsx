@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { and, eq, desc, inArray, or, ilike, not, gt, lt, lte, gte, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { announcements, housingProjects } from "@/lib/db/schema";
+import { announcements, housingProjects, sourceSyncRuns } from "@/lib/db/schema";
 import { FilterSection } from "../../components/FilterSection";
 import { StatusBadge } from "../../components/StatusBadge";
 import { SyncProgressBar } from "../components/SyncProgressBar";
@@ -94,6 +94,13 @@ export default async function ProjectsPage({
   const { status = "ALL", type = "ALL", category = "SALE", region = "ALL", q = "" } = await searchParams;
   const kstToday = getKstDateString();
   const allAnns = await getAnnouncements({ status, type, category, q }, kstToday);
+
+  // Get the most recent successful sync run to determine "NEW" items from the last sync
+  const lastSyncRun = await db.query.sourceSyncRuns.findFirst({
+    where: eq(sourceSyncRuns.status, "success"),
+    orderBy: [desc(sourceSyncRuns.startedAt)],
+  });
+  const lastSyncStartedAt = lastSyncRun ? lastSyncRun.startedAt.getTime() : 0;
 
   const filteredAnns = region === "ALL" 
     ? allAnns 
@@ -200,10 +207,17 @@ export default async function ProjectsPage({
                       <td className="px-4 py-4">
                         <Link 
                           href={`/projects/${ann.project?.slug}`}
-                          className="font-bold text-blue-600 hover:underline group-hover:text-blue-700 block max-w-[250px] truncate"
+                          className="font-bold text-blue-600 hover:underline group-hover:text-blue-700 block max-w-[280px]"
                           title={ann.project?.name}
                         >
-                          {ann.project?.name}
+                          <div className="flex items-center gap-2">
+                            <span className="truncate max-w-[200px]">{ann.project?.name}</span>
+                            {ann.createdAt.getTime() >= lastSyncStartedAt && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-500 text-white animate-pulse shadow-sm leading-none">
+                                NEW
+                              </span>
+                            )}
+                          </div>
                         </Link>
                       </td>
                       <td className="px-4 py-4 text-muted-foreground">
