@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { and, eq, desc, inArray, or, ilike, not, gt, lt, lte, gte, isNull } from "drizzle-orm";
+import { and, eq, desc, asc, inArray, or, ilike, not, gt, lt, lte, gte, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { announcements, housingProjects, sourceSyncRuns } from "@/lib/db/schema";
 import { FilterSection } from "../../components/FilterSection";
@@ -16,14 +16,10 @@ const TYPE_GROUPS = {
 };
 
 async function getAnnouncements(
-  filters: { status?: string; type?: string; category?: string; q?: string; startDate?: string },
+  filters: { status?: string; type?: string; category?: string; q?: string; sort?: string },
   kstToday: string
 ) {
   const whereConditions = [];
-  
-  if (filters.startDate) {
-    whereConditions.push(gte(announcements.applyStartDate, filters.startDate));
-  }
   
   if (filters.status && filters.status !== "ALL") {
     if (filters.status === "UPCOMING") {
@@ -81,6 +77,13 @@ async function getAnnouncements(
     whereConditions.push(ilike(housingProjects.name, `%${filters.q}%`));
   }
 
+  let orderByClause = desc(announcements.announceDate);
+  if (filters.sort === "startAsc") {
+    orderByClause = asc(announcements.applyStartDate);
+  } else if (filters.sort === "startDesc") {
+    orderByClause = desc(announcements.applyStartDate);
+  }
+
   const results = await db
     .select({
       announcement: announcements,
@@ -89,7 +92,7 @@ async function getAnnouncements(
     .from(announcements)
     .innerJoin(housingProjects, eq(announcements.projectId, housingProjects.id))
     .where(and(...whereConditions))
-    .orderBy(desc(announcements.announceDate));
+    .orderBy(orderByClause);
 
   return results.map(r => ({
     ...r.announcement,
@@ -100,11 +103,11 @@ async function getAnnouncements(
 export default async function ProjectsPage({ 
   searchParams 
 }: { 
-  searchParams: Promise<{ status?: string; type?: string; category?: string; region?: string; q?: string; startDate?: string }> 
+  searchParams: Promise<{ status?: string; type?: string; category?: string; region?: string; q?: string; sort?: string }> 
 }) {
-  const { status = "ALL", type = "ALL", category = "SALE", region = "ALL", q = "", startDate = "" } = await searchParams;
+  const { status = "ALL", type = "ALL", category = "SALE", region = "ALL", q = "", sort = "announceDesc" } = await searchParams;
   const kstToday = getKstDateString();
-  const allAnns = await getAnnouncements({ status, type, category, q, startDate }, kstToday);
+  const allAnns = await getAnnouncements({ status, type, category, q, sort }, kstToday);
 
   // Get the most recent successful sync run to determine "NEW" items from the last sync
   const lastSyncRun = await db.query.sourceSyncRuns.findFirst({
@@ -148,7 +151,7 @@ export default async function ProjectsPage({
               currentType={type} 
               currentCategory={category} 
               currentRegion={region}
-              currentStartDate={startDate}
+              currentSort={sort}
             />
           </div>
         </div>
