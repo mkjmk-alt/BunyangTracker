@@ -91,6 +91,7 @@ export function FilterSection({
             className="w-full appearance-none rounded-lg border bg-card px-4 py-2 pr-10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary shadow-sm"
           >
             <option value="ALL">모든 상태</option>
+            <option value="ACTIVE">진행 및 예정</option>
             <option value="UPCOMING">공고 예정</option>
             <option value="OPEN">접수 중</option>
             <option value="CLOSED">접수 마감</option>

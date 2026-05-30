@@ -30,6 +30,13 @@ async function getAnnouncements(
       whereConditions.push(gt(announcements.applyStartDate, kstToday));
     } else if (filters.status === "CLOSED") {
       whereConditions.push(lt(announcements.applyEndDate, kstToday));
+    } else if (filters.status === "ACTIVE") {
+      whereConditions.push(
+        or(
+          isNull(announcements.applyEndDate),
+          gte(announcements.applyEndDate, kstToday)
+        )
+      );
     } else if (filters.status === "OPEN") {
       whereConditions.push(
         and(
