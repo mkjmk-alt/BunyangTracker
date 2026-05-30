@@ -16,10 +16,14 @@ const TYPE_GROUPS = {
 };
 
 async function getAnnouncements(
-  filters: { status?: string; type?: string; category?: string; q?: string },
+  filters: { status?: string; type?: string; category?: string; q?: string; startDate?: string },
   kstToday: string
 ) {
   const whereConditions = [];
+  
+  if (filters.startDate) {
+    whereConditions.push(gte(announcements.applyStartDate, filters.startDate));
+  }
   
   if (filters.status && filters.status !== "ALL") {
     if (filters.status === "UPCOMING") {
@@ -89,11 +93,11 @@ async function getAnnouncements(
 export default async function ProjectsPage({ 
   searchParams 
 }: { 
-  searchParams: Promise<{ status?: string; type?: string; category?: string; region?: string; q?: string }> 
+  searchParams: Promise<{ status?: string; type?: string; category?: string; region?: string; q?: string; startDate?: string }> 
 }) {
-  const { status = "ALL", type = "ALL", category = "SALE", region = "ALL", q = "" } = await searchParams;
+  const { status = "ALL", type = "ALL", category = "SALE", region = "ALL", q = "", startDate = "" } = await searchParams;
   const kstToday = getKstDateString();
-  const allAnns = await getAnnouncements({ status, type, category, q }, kstToday);
+  const allAnns = await getAnnouncements({ status, type, category, q, startDate }, kstToday);
 
   // Get the most recent successful sync run to determine "NEW" items from the last sync
   const lastSyncRun = await db.query.sourceSyncRuns.findFirst({
@@ -137,6 +141,7 @@ export default async function ProjectsPage({
               currentType={type} 
               currentCategory={category} 
               currentRegion={region}
+              currentStartDate={startDate}
             />
           </div>
         </div>

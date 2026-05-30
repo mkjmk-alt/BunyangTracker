@@ -7,13 +7,15 @@ interface FilterSectionProps {
   currentType: string;
   currentCategory: string;
   currentRegion: string;
+  currentStartDate: string;
 }
 
 export function FilterSection({ 
   currentStatus, 
   currentType, 
   currentCategory,
-  currentRegion 
+  currentRegion,
+  currentStartDate
 }: FilterSectionProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -96,6 +98,26 @@ export function FilterSection({
           <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground border-l ml-2">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
           </div>
+        </div>
+
+        {/* Date Filter */}
+        <div className="flex items-center gap-1.5 relative">
+          <input 
+            type="date" 
+            value={currentStartDate || ""}
+            onChange={(e) => updateFilter("startDate", e.target.value)}
+            className="rounded-lg border bg-card px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary shadow-sm text-foreground"
+            title="청약 시작일 필터"
+          />
+          {currentStartDate && (
+            <button 
+              onClick={() => updateFilter("startDate", "ALL")}
+              className="text-[11px] font-bold text-red-500 hover:text-red-600 px-2 py-2 rounded-lg border border-red-200 dark:border-red-900/30 bg-red-500/5 hover:bg-red-500/10 transition-colors"
+              title="필터 초기화"
+            >
+              초기화
+            </button>
+          )}
         </div>
 
         {/* Type Filter (Conditional based on category) */}
