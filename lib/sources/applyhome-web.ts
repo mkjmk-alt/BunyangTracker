@@ -13,6 +13,7 @@ export interface ApplyHomeWebAnnouncement {
   builderName: string | null;
   address: string | null;
   _type: "APT" | "Remainder" | "Other";
+  houseSecd?: string | null;
 }
 
 export class ApplyHomeWebProvider implements SourceProvider<ApplyHomeWebAnnouncement> {
@@ -73,6 +74,8 @@ export class ApplyHomeWebProvider implements SourceProvider<ApplyHomeWebAnnounce
               const pblancNo = pbnoMatch[1];
               const houseManageNo = hmnoMatch[1];
               const name = honmMatch[1];
+              const hsecdMatch = tagContent.match(/data-hsecd="([^"]+)"/);
+              const houseSecd = hsecdMatch ? hsecdMatch[1] : null;
               
               // Extract td text values in order
               const tdRegex = /<td[^>]*>([\s\S]*?)<\/td>/g;
@@ -161,7 +164,8 @@ export class ApplyHomeWebProvider implements SourceProvider<ApplyHomeWebAnnounce
                 winnerAnnounceDate,
                 builderName,
                 address,
-                _type: type
+                _type: type,
+                houseSecd
               });
             }
           }
@@ -216,9 +220,13 @@ export class ApplyHomeWebProvider implements SourceProvider<ApplyHomeWebAnnounce
         raw._type === "Remainder"
           ? "selectAPTRemndrLttotPblancDetailView.do"
           : raw._type === "Other"
-          ? "selectUrbtyOfctlLttotPblancDetailView.do"
+          ? "selectPRMOLttotPblancDetailView.do"
           : "selectAPTLttotPblancDetail.do"
-      }?houseManageNo=${raw.houseManageNo}&pblancNo=${raw.pblancNo}`,
+      }?houseManageNo=${raw.houseManageNo}&pblancNo=${raw.pblancNo}${
+        raw._type === "Other" && raw.houseSecd
+          ? `&houseSecd=${raw.houseSecd}`
+          : ""
+      }`,
       homepageAdres: null,
       atchmnflSeqNo: null,
       atchmnflSn: null,
