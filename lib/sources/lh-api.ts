@@ -14,15 +14,14 @@ export class LHApiProvider implements SourceProvider<LHAnnouncement> {
     
     console.log(`[LH] Starting public housing fetch (Page ${page})...`);
 
-    // Categories: 05(Sale), 06(New Marriage), 31(Rent/Happy)
-    // LH usually needs date filters to return results
     const today = new Date();
     const oneYearAgo = subYears(today, 1);
     
     const startDate = format(oneYearAgo, "yyyy.MM.dd");
     const endDate = format(today, "yyyy.MM.dd");
 
-    const categories = ["05", "06", "31"];
+    // ponytail: Categories expanded to include 13 (주거복지/임대) and 39 (신혼희망타운/분양)
+    const categories = ["05", "06", "13", "31", "39"];
 
     const promises = categories.map(async (cat) => {
       try {
