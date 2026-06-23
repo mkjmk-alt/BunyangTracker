@@ -1,6 +1,6 @@
 import { StatusBadge } from "./StatusBadge";
 import { format } from "date-fns";
-import { getDynamicStatus } from "@/lib/utils";
+import { getDynamicStatus, getSourceBadge } from "@/lib/utils";
 import Link from "next/link";
 
 interface AnnouncementCardProps {
@@ -17,6 +17,7 @@ interface AnnouncementCardProps {
     announceDate: string | null;
     applyStartDate: string | null;
     applyEndDate: string | null;
+    externalSourceKey?: string | null;
   };
 }
 
@@ -33,8 +34,16 @@ export function AnnouncementCard({ project, announcement }: AnnouncementCardProp
     >
       <div className="flex items-start justify-between mb-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-xs font-semibold text-primary uppercase tracking-wider">{announcement.supplyType}</span>
+            {(() => {
+              const badge = getSourceBadge(announcement.externalSourceKey);
+              return badge ? (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded leading-none ${badge.className}`}>
+                  {badge.label}
+                </span>
+              ) : null;
+            })()}
             <StatusBadge status={status} label={displayStatus} />
           </div>
           <h4 className="text-lg font-bold group-hover:text-primary transition-colors">{project.name}</h4>

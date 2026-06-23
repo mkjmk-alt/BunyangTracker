@@ -4,7 +4,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { db } from "@/lib/db";
 import { housingProjects, announcements, announcementUnits, rawSourcePayloads } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { getApplyHomeUrl, getDynamicStatus } from "@/lib/utils";
+import { getApplyHomeUrl, getDynamicStatus, getSourceBadge } from "@/lib/utils";
 import { notFound } from "next/navigation";
 
 async function getProjectDetails(slug: string) {
@@ -26,7 +26,7 @@ async function getProjectDetails(slug: string) {
 
   const latestAnn = project.announcements[0];
   
-  if (latestAnn && latestAnn.externalSourceKey && latestAnn.externalSourceKey.startsWith("applyhome_api")) {
+  if (latestAnn && latestAnn.externalSourceKey && (latestAnn.externalSourceKey.startsWith("applyhome_api") || latestAnn.externalSourceKey.startsWith("applyhome_web"))) {
     const hasUnits = latestAnn.units && latestAnn.units.length > 0;
     // Check if attachment metadata exists and is not null
     const hasAttachments = latestAnn.atchmnflSeqNo !== null && latestAnn.atchmnflSeqNo !== undefined;
@@ -139,6 +139,16 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               <span className="text-xs font-bold text-primary uppercase px-2 py-1 bg-primary/10 rounded">
                 {latestAnn?.supplyType || "APT"}
               </span>
+              {latestAnn && (
+                (() => {
+                  const badge = getSourceBadge(latestAnn.externalSourceKey);
+                  return badge ? (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badge.className}`}>
+                      {badge.label}
+                    </span>
+                  ) : null;
+                })()
+              )}
               <StatusBadge status={currentStatus} label={currentDisplayStatus} />
             </div>
             <h1 className="text-4xl font-extrabold tracking-tight mb-2">{project.name}</h1>

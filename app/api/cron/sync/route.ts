@@ -166,7 +166,7 @@ export async function GET(request: Request) {
       const provider = new ApplyHomeApiProvider();
       
       for (const ann of annValues) {
-        if (ann.externalSourceKey.startsWith("applyhome_api")) {
+        if (ann.externalSourceKey.startsWith("applyhome_api") || ann.externalSourceKey.startsWith("applyhome_web")) {
           const existing = existingMap.get(ann.announceNo);
           if (!existing || !existing.atchmnflSeqNo) {
             console.log(`[FastSync] Auto-discovering attachments for announcement ${ann.announceNo}...`);

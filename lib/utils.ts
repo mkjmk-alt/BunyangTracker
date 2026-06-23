@@ -55,3 +55,26 @@ export function getDynamicStatus(
     displayStatus: "접수중"
   };
 }
+
+export function getSourceBadge(key: string | null | undefined) {
+  if (!key) return null;
+  if (key.startsWith("applyhome_web")) {
+    return { 
+      label: "실시간 수집", 
+      className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/30" 
+    };
+  }
+  if (key.startsWith("applyhome_api")) {
+    return { 
+      label: "공식 API", 
+      className: "bg-sky-100 text-sky-700 dark:bg-sky-950/30 dark:text-sky-400 border border-sky-200/50 dark:border-sky-900/30" 
+    };
+  }
+  if (key.startsWith("lh_api")) {
+    return { 
+      label: "LH 연동", 
+      className: "bg-purple-100 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400 border border-purple-200/50 dark:border-purple-900/30" 
+    };
+  }
+  return null;
+}

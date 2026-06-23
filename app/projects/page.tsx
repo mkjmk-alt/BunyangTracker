@@ -7,7 +7,7 @@ import { FilterSection } from "../../components/FilterSection";
 import { StatusBadge } from "../../components/StatusBadge";
 import { SyncProgressBar } from "../components/SyncProgressBar";
 import { BookmarkCheckbox } from "../../components/BookmarkCheckbox";
-import { getKstDateString, getDynamicStatus } from "@/lib/utils";
+import { getKstDateString, getDynamicStatus, getSourceBadge } from "@/lib/utils";
 import Link from "next/link";
 
 const TYPE_GROUPS = {
@@ -215,9 +215,19 @@ export default async function ProjectsPage({
                           ann.project?.name?.includes("제주") ? "제주특별자치도" : "-")}
                       </td>
                       <td className="px-4 py-4">
-                        <span className="text-xs font-medium px-2 py-0.5 bg-primary/5 text-primary rounded-full">
-                          {ann.supplyType}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium px-2 py-0.5 bg-primary/5 text-primary rounded-full">
+                            {ann.supplyType}
+                          </span>
+                          {(() => {
+                            const badge = getSourceBadge(ann.externalSourceKey);
+                            return badge ? (
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${badge.className}`}>
+                                {badge.label}
+                              </span>
+                            ) : null;
+                          })()}
+                        </div>
                       </td>
                       <td className="px-4 py-4">
                         <Link 

@@ -249,7 +249,7 @@ export class ApplyHomeWebProvider implements SourceProvider<ApplyHomeWebAnnounce
   }
 
   getStableExternalId(raw: ApplyHomeWebAnnouncement): string {
-    return `applyhome_api:${raw.pblancNo}`;
+    return `applyhome_web:${raw.pblancNo}`;
   }
 
   supportsBackfill(): boolean {
