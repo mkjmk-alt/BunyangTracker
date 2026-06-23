@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sourceSyncRuns, sourceProviders, housingProjects, announcements } from "@/lib/db/schema";
 import { ApplyHomeApiProvider } from "@/lib/sources/applyhome-api";
+import { ApplyHomeWebProvider } from "@/lib/sources/applyhome-web";
 import { LHApiProvider } from "@/lib/sources/lh-api";
 import { generateFingerprint } from "@/lib/normalize/announcement";
 import { eq, sql } from "drizzle-orm";
@@ -17,6 +18,7 @@ export async function GET(request: Request) {
     // ─── 1. Register providers (parallel) ─────────────────────────
     const providerConfigs = [
       { instance: new ApplyHomeApiProvider(), label: "청약홈 (민영/공공분양)" },
+      { instance: new ApplyHomeWebProvider(), label: "청약홈 실시간 웹 (민영/공공분양/기타)" },
       { instance: new LHApiProvider(), label: "LH 청약플러스 (공공주택/행복주택)" },
     ];
 
