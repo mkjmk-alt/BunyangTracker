@@ -22,16 +22,16 @@ export default function RootLayout({
           {/* Header */}
           <header className="sticky top-0 z-50 w-full border-b glass">
             <div className="container mx-auto flex h-16 items-center px-4 md:px-6">
-              <Link href="/" className="mr-6 flex items-center space-x-2">
-                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent">
+              <Link href="/" className="mr-3 sm:mr-6 flex items-center space-x-2 shrink-0">
+                <span className="text-base sm:text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent">
                   BunyangTracker
                 </span>
               </Link>
-              <nav className="flex items-center space-x-6 text-sm font-medium flex-1">
-                <Link href="/projects" className="transition-colors hover:text-primary">분양목록</Link>
-                <Link href="/calendar" className="transition-colors hover:text-primary">캘린더</Link>
-                <Link href="/changes" className="transition-colors hover:text-primary">변경이력</Link>
-                <Link href="/admin/sync" className="transition-colors hover:text-primary">수집관리</Link>
+              <nav className="flex items-center space-x-3 sm:space-x-6 text-xs sm:text-sm font-medium flex-1 overflow-x-auto scrollbar-none whitespace-nowrap py-1">
+                <Link href="/projects" className="transition-colors hover:text-primary whitespace-nowrap">분양목록</Link>
+                <Link href="/calendar" className="transition-colors hover:text-primary whitespace-nowrap">캘린더</Link>
+                <Link href="/changes" className="transition-colors hover:text-primary whitespace-nowrap">변경이력</Link>
+                <Link href="/admin/sync" className="transition-colors hover:text-primary whitespace-nowrap">수집관리</Link>
               </nav>
               <div className="flex items-center space-x-4">
                 <button className="hidden md:flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow transition-colors hover:bg-primary/90">
