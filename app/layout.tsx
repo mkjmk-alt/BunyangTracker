@@ -27,7 +27,7 @@ export default function RootLayout({
                   BunyangTracker
                 </span>
               </Link>
-              <nav className="flex items-center space-x-3 sm:space-x-6 text-xs sm:text-sm font-medium flex-1 overflow-x-auto scrollbar-none whitespace-nowrap py-1">
+              <nav className="flex items-center justify-end space-x-3 sm:space-x-6 text-xs sm:text-sm font-medium flex-1 overflow-x-auto scrollbar-none whitespace-nowrap py-1">
                 <Link href="/projects" className="transition-colors hover:text-primary whitespace-nowrap">분양목록</Link>
                 <Link href="/calendar" className="transition-colors hover:text-primary whitespace-nowrap">캘린더</Link>
                 <Link href="/changes" className="transition-colors hover:text-primary whitespace-nowrap">변경이력</Link>
