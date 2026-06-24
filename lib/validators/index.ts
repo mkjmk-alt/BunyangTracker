@@ -97,3 +97,33 @@ export const LHAnnouncementSchema = z.object({
 });
 
 export type LHAnnouncement = z.infer<typeof LHAnnouncementSchema>;
+
+// SH API/Web Scraping Schema
+export const SHAnnouncementSchema = z.object({
+  seq: z.string(),
+  title: z.string(),
+  dept: z.string().optional().nullable(),
+  date: z.string().optional().nullable(),
+  views: z.coerce.number().optional().nullable(),
+  _type: z.enum(["notice", "rent"]),
+  boardId: z.string(),
+  menuId: z.string(),
+  domain: z.string(),
+});
+
+export type SHAnnouncement = z.infer<typeof SHAnnouncementSchema>;
+
+// GH Web Scraping Schema
+export const GHAnnouncementSchema = z.object({
+  pbancNo: z.string(),
+  bizCd: z.string(),
+  rcritNmtm: z.string(),
+  bizTyCd: z.string(),
+  type: z.string(),
+  region: z.string().optional().nullable(),
+  title: z.string(),
+  bizName: z.string().optional().nullable(),
+  docDate: z.string().optional().nullable(),
+});
+
+export type GHAnnouncement = z.infer<typeof GHAnnouncementSchema>;

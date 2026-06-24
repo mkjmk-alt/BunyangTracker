@@ -4,6 +4,8 @@ import { sourceSyncRuns, sourceProviders, housingProjects, announcements } from 
 import { ApplyHomeApiProvider } from "@/lib/sources/applyhome-api";
 import { ApplyHomeWebProvider } from "@/lib/sources/applyhome-web";
 import { LHApiProvider } from "@/lib/sources/lh-api";
+import { SHWebProvider } from "@/lib/sources/sh-web";
+import { GHWebProvider } from "@/lib/sources/gh-web";
 import { generateFingerprint } from "@/lib/normalize/announcement";
 import { eq, sql } from "drizzle-orm";
 
@@ -20,6 +22,8 @@ export async function GET(request: Request) {
       { instance: new ApplyHomeApiProvider(), label: "청약홈 (민영/공공분양)" },
       { instance: new ApplyHomeWebProvider(), label: "청약홈 실시간 웹 (민영/공공분양/기타)" },
       { instance: new LHApiProvider(), label: "LH 청약플러스 (공공주택/행복주택)" },
+      { instance: new SHWebProvider(), label: "SH 서울주택도시공사 실시간 웹 (분양/임대)" },
+      { instance: new GHWebProvider(), label: "GH 경기주택도시공사 실시간 웹 (청약공고)" },
     ];
 
     const providerIds: Record<string, string> = {};

@@ -76,5 +76,17 @@ export function getSourceBadge(key: string | null | undefined) {
       className: "bg-purple-100 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400 border border-purple-200/50 dark:border-purple-900/30" 
     };
   }
+  if (key.startsWith("sh_web")) {
+    return { 
+      label: "SH 연동", 
+      className: "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200/50 dark:border-amber-900/30" 
+    };
+  }
+  if (key.startsWith("gh_web")) {
+    return { 
+      label: "GH 연동", 
+      className: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-900/30" 
+    };
+  }
   return null;
 }
