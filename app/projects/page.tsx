@@ -157,7 +157,8 @@ export default async function ProjectsPage({
         </div>
 
         <div className="w-full pb-4 max-w-full overflow-hidden">
-          <div className="rounded-xl border bg-card subtle-shadow overflow-x-auto scrollbar-thin scrollbar-thumb-primary/10 hover:scrollbar-thumb-primary/20">
+          {/* Desktop View: Table */}
+          <div className="hidden md:block rounded-xl border bg-card subtle-shadow overflow-x-auto scrollbar-thin scrollbar-thumb-primary/10 hover:scrollbar-thumb-primary/20">
             <table className="w-full text-left text-sm whitespace-nowrap min-w-[1100px] table-auto">
               <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] font-bold sticky top-0 z-10">
                 <tr>
@@ -283,7 +284,119 @@ export default async function ProjectsPage({
               </tbody>
             </table>
           </div>
+
+          {/* Mobile View: Card List */}
+          <div className="block md:hidden space-y-4">
+            {filteredAnns.map((ann: any) => {
+              const { status: currentStatus, displayStatus: currentDisplayStatus } = getDynamicStatus(
+                ann.applyStartDate,
+                ann.applyEndDate,
+                kstToday
+              );
+              const badge = getSourceBadge(ann.externalSourceKey);
+
+              return (
+                <div 
+                  key={ann.id} 
+                  className="bg-card rounded-xl border p-5 subtle-shadow flex flex-col gap-4 relative hover:border-primary/50 transition-colors"
+                >
+                  {/* Header: Region, Status & Bookmark */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold px-2 py-0.5 bg-accent text-accent-foreground rounded-md">
+                        {ann.project?.address?.split(" ")[0] || 
+                         (ann.project?.name?.includes("남양주") || 
+                          ann.project?.name?.includes("고양") || 
+                          ann.project?.name?.includes("용인") || 
+                          ann.project?.name?.includes("성남") || 
+                          ann.project?.name?.includes("화성") || 
+                          ann.project?.name?.includes("평택") || 
+                          ann.project?.name?.includes("수원") || 
+                          ann.project?.name?.includes("안산") || 
+                          ann.project?.name?.includes("부천") ? "경기" : 
+                          ann.project?.name?.includes("서울") ? "서울" :
+                          ann.project?.name?.includes("인천") ? "인천" :
+                          ann.project?.name?.includes("부산") ? "부산" :
+                          ann.project?.name?.includes("대구") ? "대구" :
+                          ann.project?.name?.includes("광주") ? "광주" :
+                          ann.project?.name?.includes("대전") ? "대전" :
+                          ann.project?.name?.includes("울산") ? "울산" :
+                          ann.project?.name?.includes("세종") ? "세종" : "전국")}
+                      </span>
+                      <StatusBadge status={currentStatus} label={currentDisplayStatus} />
+                    </div>
+                    <BookmarkCheckbox id={ann.id} initialChecked={ann.isBookmarked || false} />
+                  </div>
+
+                  {/* Title & Builder */}
+                  <div>
+                    <Link 
+                      href={`/projects/${ann.project?.slug}`}
+                      className="font-extrabold text-base text-foreground hover:text-primary transition-colors flex items-center gap-1.5 flex-wrap"
+                    >
+                      <span>{ann.project?.name}</span>
+                      {ann.createdAt.getTime() >= lastSyncStartedAt && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-extrabold bg-blue-500 text-white animate-pulse shadow-sm leading-none">
+                          NEW
+                        </span>
+                      )}
+                    </Link>
+                    {(ann.project?.developerName || ann.project?.builderName) ? (
+                      <span className="text-xs text-muted-foreground mt-1 block">
+                        {ann.project?.developerName || ann.project?.builderName}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {/* Badges */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-medium px-2.5 py-0.5 bg-primary/5 text-primary rounded-full border border-primary/10">
+                      {ann.supplyType}
+                    </span>
+                    {badge && (
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${badge.className}`}>
+                        {badge.label}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Dates */}
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-3 border-t border-dashed">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-muted-foreground text-[10px]">청약 기간</span>
+                      <span className="font-semibold text-foreground">
+                        {ann.applyStartDate && ann.applyEndDate 
+                          ? `${ann.applyStartDate.substring(5)} ~ ${ann.applyEndDate.substring(5)}`
+                          : "-"
+                        }
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-muted-foreground text-[10px]">당첨자 발표</span>
+                      <span className="font-semibold text-foreground">
+                        {ann.winnerAnnounceDate ? ann.winnerAnnounceDate.substring(5) : "-"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Footer Button */}
+                  <Link 
+                    href={`/projects/${ann.project?.slug}`}
+                    className="mt-2 text-xs font-semibold text-primary hover:bg-primary/10 flex items-center justify-center py-2.5 bg-primary/5 rounded-lg border border-primary/10 text-center transition-colors"
+                  >
+                    상세 정보 및 공고문 보기
+                  </Link>
+                </div>
+              );
+            })}
+            {filteredAnns.length === 0 && (
+              <div className="py-16 text-center border-2 border-dashed rounded-xl">
+                <p className="text-muted-foreground text-sm">검색 결과가 없습니다.</p>
+              </div>
+            )}
+          </div>
         </div>
+
       </div>
     </main>
   );
