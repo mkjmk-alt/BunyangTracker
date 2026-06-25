@@ -28,25 +28,21 @@ async function run() {
 
   const result = await db.execute(sql`
     select 
-      status, 
-      count(*),
-      min(announce_date) as min_date,
-      max(announce_date) as max_date
-    from announcements 
-    group by status
+      r.id,
+      p.name as provider,
+      r.status,
+      r.started_at,
+      r.total_fetched,
+      r.total_upserted,
+      r.total_errors,
+      r.error_summary
+    from source_sync_runs r
+    join source_providers p on r.provider_id = p.id
+    order by r.started_at desc
+    limit 10
   `);
-  console.log("Announcement stats by status:");
+  console.log("Recent sync runs:");
   console.log(result);
-
-  const dates = await db.execute(sql`
-    select 
-      min(announce_date) as min_date, 
-      max(announce_date) as max_date,
-      count(*) filter (where announce_date >= current_date - interval '3 months') as last_3_months
-    from announcements
-  `);
-  console.log("Date ranges:");
-  console.log(dates);
 }
 
 run().catch(console.error);

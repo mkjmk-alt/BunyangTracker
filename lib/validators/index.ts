@@ -127,3 +127,20 @@ export const GHAnnouncementSchema = z.object({
 });
 
 export type GHAnnouncement = z.infer<typeof GHAnnouncementSchema>;
+
+// 마이홈 API 응답 스케마 (공공임대주택 모집공고)
+export const MyHomeAnnouncementSchema = z.object({
+  pblancId: z.coerce.string(),
+  pblancNm: z.string(),
+  fullAdres: z.string().optional().nullable(),
+  rcritPblancDe: z.string().optional().nullable(),
+  beginDe: z.string().optional().nullable(),
+  endDe: z.string().optional().nullable(),
+  suplyTyNm: z.string().optional().nullable(),
+  suplyInsttNm: z.string().optional().nullable(),
+  sttusNm: z.string().optional().nullable(),
+  pcUrl: z.string().optional().nullable(),
+  url: z.string().optional().nullable(),
+}).passthrough();
+
+export type MyHomeAnnouncement = z.infer<typeof MyHomeAnnouncementSchema>;
