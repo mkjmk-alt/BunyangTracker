@@ -1,14 +1,12 @@
 export const dynamic = "force-dynamic";
 
-import { and, eq, desc, asc, inArray, or, ilike, not, gt, lt, lte, gte, isNull } from "drizzle-orm";
+import { and, eq, desc, asc, inArray, or, ilike, not } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { announcements, housingProjects, sourceSyncRuns } from "@/lib/db/schema";
 import { FilterSection } from "../../components/FilterSection";
-import { StatusBadge } from "../../components/StatusBadge";
 import { SyncProgressBar } from "../components/SyncProgressBar";
-import { BookmarkCheckbox } from "../../components/BookmarkCheckbox";
-import { getKstDateString, getDynamicStatus, getSourceBadge } from "@/lib/utils";
-import Link from "next/link";
+import { ProjectListTable } from "../../components/ProjectListTable";
+import { getKstDateString } from "@/lib/utils";
 
 const TYPE_GROUPS = {
   SALE: ["APT", "무순위", "임의공급", "불법행위 재공급", "공공분양", "공공분양주택", "분양주택", "도시형/오피스텔/생활숙박시설/민간임대"],
@@ -16,38 +14,9 @@ const TYPE_GROUPS = {
 };
 
 async function getAnnouncements(
-  filters: { status?: string; type?: string; category?: string; q?: string; sort?: string },
-  kstToday: string
+  filters: { category?: string; q?: string; sort?: string }
 ) {
   const whereConditions = [];
-  
-  if (filters.status && filters.status !== "ALL") {
-    if (filters.status === "UPCOMING") {
-      whereConditions.push(gt(announcements.applyStartDate, kstToday));
-    } else if (filters.status === "CLOSED") {
-      whereConditions.push(lt(announcements.applyEndDate, kstToday));
-    } else if (filters.status === "ACTIVE") {
-      whereConditions.push(
-        or(
-          isNull(announcements.applyEndDate),
-          gte(announcements.applyEndDate, kstToday)
-        )
-      );
-    } else if (filters.status === "OPEN") {
-      whereConditions.push(
-        and(
-          or(
-            isNull(announcements.applyStartDate),
-            lte(announcements.applyStartDate, kstToday)
-          ),
-          or(
-            isNull(announcements.applyEndDate),
-            gte(announcements.applyEndDate, kstToday)
-          )
-        )
-      );
-    }
-  }
   
   if (filters.category === "SALE") {
     whereConditions.push(
@@ -69,8 +38,6 @@ async function getAnnouncements(
         not(ilike(announcements.supplyType, "%오피스텔%"))
       )
     );
-  } else if (filters.type && filters.type !== "ALL") {
-    whereConditions.push(eq(announcements.supplyType, filters.type));
   }
 
   if (filters.q) {
@@ -103,11 +70,11 @@ async function getAnnouncements(
 export default async function ProjectsPage({ 
   searchParams 
 }: { 
-  searchParams: Promise<{ status?: string; type?: string; category?: string; region?: string; q?: string; sort?: string }> 
+  searchParams: Promise<{ category?: string; q?: string; sort?: string }> 
 }) {
-  const { status = "ALL", type = "ALL", category = "SALE", region = "ALL", q = "", sort = "announceDesc" } = await searchParams;
+  const { category = "SALE", q = "", sort = "announceDesc" } = await searchParams;
   const kstToday = getKstDateString();
-  const allAnns = await getAnnouncements({ status, type, category, q, sort }, kstToday);
+  const allAnns = await getAnnouncements({ category, q, sort });
 
   // Get the most recent successful sync run to determine "NEW" items from the last sync
   const lastSyncRun = await db.query.sourceSyncRuns.findFirst({
@@ -116,24 +83,17 @@ export default async function ProjectsPage({
   });
   const lastSyncStartedAt = lastSyncRun ? lastSyncRun.startedAt.getTime() : 0;
 
-  const filteredAnns = region === "ALL" 
-    ? allAnns 
-    : allAnns.filter(ann => {
-        const addrMatch = ann.project?.address?.includes(region);
-        const nameMatch = ann.project?.name?.includes(region) || 
-                         (region === "경기도" && (
-                           ann.project?.name?.includes("남양주") || 
-                           ann.project?.name?.includes("고양") || 
-                           ann.project?.name?.includes("용인") || 
-                           ann.project?.name?.includes("성남") || 
-                           ann.project?.name?.includes("화성") || 
-                           ann.project?.name?.includes("평택") || 
-                           ann.project?.name?.includes("수원") || 
-                           ann.project?.name?.includes("안산") || 
-                           ann.project?.name?.includes("부천")
-                         ));
-        return addrMatch || nameMatch;
-      });
+  // Serialize Date fields to strings before passing to client components
+  const serializedProjects = allAnns.map((ann) => ({
+    ...ann,
+    createdAt: ann.createdAt.toISOString(),
+    updatedAt: ann.updatedAt.toISOString(),
+    project: ann.project ? {
+      ...ann.project,
+      createdAt: ann.project.createdAt.toISOString(),
+      updatedAt: ann.project.updatedAt.toISOString(),
+    } : null
+  }));
 
   return (
     <main className="container mx-auto py-8 px-4 md:px-6">
@@ -147,256 +107,18 @@ export default async function ProjectsPage({
           <div className="flex flex-col items-end gap-2">
             <SyncProgressBar />
             <FilterSection 
-              currentStatus={status} 
-              currentType={type} 
               currentCategory={category} 
-              currentRegion={region}
               currentSort={sort}
             />
           </div>
         </div>
 
-        <div className="w-full pb-4 max-w-full overflow-hidden">
-          {/* Desktop View: Table */}
-          <div className="hidden md:block rounded-xl border bg-card subtle-shadow overflow-x-auto scrollbar-thin scrollbar-thumb-primary/10 hover:scrollbar-thumb-primary/20">
-            <table className="w-full text-left text-sm whitespace-nowrap min-w-[1100px] table-auto">
-              <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] font-bold sticky top-0 z-10">
-                <tr>
-                  <th className="px-4 py-4 w-10 text-center"></th>
-                  <th className="px-4 py-4">지역</th>
-                  <th className="px-4 py-4">구분</th>
-                  <th className="px-4 py-4">주택명</th>
-                  <th className="px-4 py-4">시행사/건설사</th>
-                  <th className="px-4 py-4">모집공고일</th>
-                  <th className="px-4 py-4">청약기간</th>
-                  <th className="px-4 py-4">당첨자발표</th>
-                  <th className="px-4 py-4 text-center">상태</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {filteredAnns.map((ann: any) => {
-                  const { status: currentStatus, displayStatus: currentDisplayStatus } = getDynamicStatus(
-                    ann.applyStartDate,
-                    ann.applyEndDate,
-                    kstToday
-                  );
-
-                  return (
-                    <tr key={ann.id} className="hover:bg-accent/5 transition-colors group">
-                      <td className="px-4 py-4 text-center">
-                        <BookmarkCheckbox id={ann.id} initialChecked={ann.isBookmarked || false} />
-                      </td>
-                      <td className="px-4 py-4 text-muted-foreground">
-                        {ann.project?.address?.split(" ")[0] || 
-                         (ann.project?.name?.includes("남양주") || 
-                          ann.project?.name?.includes("고양") || 
-                          ann.project?.name?.includes("용인") || 
-                          ann.project?.name?.includes("성남") || 
-                          ann.project?.name?.includes("화성") || 
-                          ann.project?.name?.includes("평택") || 
-                          ann.project?.name?.includes("수원") || 
-                          ann.project?.name?.includes("안산") || 
-                          ann.project?.name?.includes("부천") ? "경기도" : 
-                          ann.project?.name?.includes("서울") ? "서울특별시" :
-                          ann.project?.name?.includes("인천") ? "인천광역시" :
-                          ann.project?.name?.includes("부산") ? "부산광역시" :
-                          ann.project?.name?.includes("대구") ? "대구광역시" :
-                          ann.project?.name?.includes("광주") ? "광주광역시" :
-                          ann.project?.name?.includes("대전") ? "대전광역시" :
-                          ann.project?.name?.includes("울산") ? "울산광역시" :
-                          ann.project?.name?.includes("세종") ? "세종특별자치시" :
-                          ann.project?.name?.includes("경기") ? "경기도" :
-                          ann.project?.name?.includes("강원") ? "강원특별자치도" :
-                          ann.project?.name?.includes("충북") ? "충청북도" :
-                          ann.project?.name?.includes("충남") ? "충청남도" :
-                          ann.project?.name?.includes("전북") ? "전북특별자치도" :
-                          ann.project?.name?.includes("전남") ? "전라남도" :
-                          ann.project?.name?.includes("경북") ? "경상북도" :
-                          ann.project?.name?.includes("경남") ? "경상남도" :
-                          ann.project?.name?.includes("제주") ? "제주특별자치도" : "-")}
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium px-2 py-0.5 bg-primary/5 text-primary rounded-full">
-                            {ann.supplyType}
-                          </span>
-                          {(() => {
-                            const badge = getSourceBadge(ann.externalSourceKey);
-                            return badge ? (
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${badge.className}`}>
-                                {badge.label}
-                              </span>
-                            ) : null;
-                          })()}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <Link 
-                          href={`/projects/${ann.project?.slug}`}
-                          className="font-bold text-blue-600 hover:underline group-hover:text-blue-700 block max-w-[280px]"
-                          title={ann.project?.name}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="truncate max-w-[200px]">{ann.project?.name}</span>
-                            {ann.createdAt.getTime() >= lastSyncStartedAt && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-500 text-white animate-pulse shadow-sm leading-none">
-                                NEW
-                              </span>
-                            )}
-                          </div>
-                        </Link>
-                      </td>
-                      <td className="px-4 py-4 text-muted-foreground">
-                        <div className="max-w-[120px] truncate" title={ann.project?.developerName || ann.project?.builderName}>
-                          {ann.project?.developerName || ann.project?.builderName || "-"}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">{ann.announceDate || "-"}</td>
-                      <td className="px-4 py-4 font-medium">
-                        {ann.applyStartDate && ann.applyEndDate ? (
-                          <span className="text-muted-foreground">
-                            <span className="text-foreground">{ann.applyStartDate}</span>
-                            <span className="mx-1">~</span>
-                            <span className="text-foreground">{ann.applyEndDate}</span>
-                          </span>
-                        ) : "-"}
-                      </td>
-                      <td className="px-4 py-4">{ann.winnerAnnounceDate || "-"}</td>
-                      <td className="px-4 py-4 text-center">
-                        <StatusBadge status={currentStatus} label={currentDisplayStatus} />
-                      </td>
-                    </tr>
-                  );
-                })}
-                {filteredAnns.length === 0 && (
-                  <tr>
-                    <td colSpan={9} className="px-6 py-24 text-center">
-                      <div className="mb-4 flex justify-center">
-                        <div className="rounded-full bg-accent p-6">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                        </div>
-                      </div>
-                      <h3 className="text-lg font-bold">검색 결과가 없습니다</h3>
-                      <p className="text-muted-foreground">필터를 조정하거나 나중에 다시 시도해 주세요.</p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile View: Card List */}
-          <div className="block md:hidden space-y-4">
-            {filteredAnns.map((ann: any) => {
-              const { status: currentStatus, displayStatus: currentDisplayStatus } = getDynamicStatus(
-                ann.applyStartDate,
-                ann.applyEndDate,
-                kstToday
-              );
-              const badge = getSourceBadge(ann.externalSourceKey);
-
-              return (
-                <div 
-                  key={ann.id} 
-                  className="bg-card rounded-xl border p-5 subtle-shadow flex flex-col gap-4 relative hover:border-primary/50 transition-colors"
-                >
-                  {/* Header: Region, Status & Bookmark */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold px-2 py-0.5 bg-accent text-accent-foreground rounded-md">
-                        {ann.project?.address?.split(" ")[0] || 
-                         (ann.project?.name?.includes("남양주") || 
-                          ann.project?.name?.includes("고양") || 
-                          ann.project?.name?.includes("용인") || 
-                          ann.project?.name?.includes("성남") || 
-                          ann.project?.name?.includes("화성") || 
-                          ann.project?.name?.includes("평택") || 
-                          ann.project?.name?.includes("수원") || 
-                          ann.project?.name?.includes("안산") || 
-                          ann.project?.name?.includes("부천") ? "경기" : 
-                          ann.project?.name?.includes("서울") ? "서울" :
-                          ann.project?.name?.includes("인천") ? "인천" :
-                          ann.project?.name?.includes("부산") ? "부산" :
-                          ann.project?.name?.includes("대구") ? "대구" :
-                          ann.project?.name?.includes("광주") ? "광주" :
-                          ann.project?.name?.includes("대전") ? "대전" :
-                          ann.project?.name?.includes("울산") ? "울산" :
-                          ann.project?.name?.includes("세종") ? "세종" : "전국")}
-                      </span>
-                      <StatusBadge status={currentStatus} label={currentDisplayStatus} />
-                    </div>
-                    <BookmarkCheckbox id={ann.id} initialChecked={ann.isBookmarked || false} />
-                  </div>
-
-                  {/* Title & Builder */}
-                  <div>
-                    <Link 
-                      href={`/projects/${ann.project?.slug}`}
-                      className="font-extrabold text-base text-foreground hover:text-primary transition-colors flex items-center gap-1.5 flex-wrap"
-                    >
-                      <span>{ann.project?.name}</span>
-                      {ann.createdAt.getTime() >= lastSyncStartedAt && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-extrabold bg-blue-500 text-white animate-pulse shadow-sm leading-none">
-                          NEW
-                        </span>
-                      )}
-                    </Link>
-                    {(ann.project?.developerName || ann.project?.builderName) ? (
-                      <span className="text-xs text-muted-foreground mt-1 block">
-                        {ann.project?.developerName || ann.project?.builderName}
-                      </span>
-                    ) : null}
-                  </div>
-
-                  {/* Badges */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-medium px-2.5 py-0.5 bg-primary/5 text-primary rounded-full border border-primary/10">
-                      {ann.supplyType}
-                    </span>
-                    {badge && (
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${badge.className}`}>
-                        {badge.label}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Dates */}
-                  <div className="grid grid-cols-2 gap-2 text-xs pt-3 border-t border-dashed">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-muted-foreground text-[10px]">청약 기간</span>
-                      <span className="font-semibold text-foreground">
-                        {ann.applyStartDate && ann.applyEndDate 
-                          ? `${ann.applyStartDate.substring(5)} ~ ${ann.applyEndDate.substring(5)}`
-                          : "-"
-                        }
-                      </span>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-muted-foreground text-[10px]">당첨자 발표</span>
-                      <span className="font-semibold text-foreground">
-                        {ann.winnerAnnounceDate ? ann.winnerAnnounceDate.substring(5) : "-"}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Footer Button */}
-                  <Link 
-                    href={`/projects/${ann.project?.slug}`}
-                    className="mt-2 text-xs font-semibold text-primary hover:bg-primary/10 flex items-center justify-center py-2.5 bg-primary/5 rounded-lg border border-primary/10 text-center transition-colors"
-                  >
-                    상세 정보 및 공고문 보기
-                  </Link>
-                </div>
-              );
-            })}
-            {filteredAnns.length === 0 && (
-              <div className="py-16 text-center border-2 border-dashed rounded-xl">
-                <p className="text-muted-foreground text-sm">검색 결과가 없습니다.</p>
-              </div>
-            )}
-          </div>
-        </div>
-
+        {/* Project List Table with Excel-like dropdown filters & Mobile Cards */}
+        <ProjectListTable 
+          initialProjects={serializedProjects} 
+          kstToday={kstToday} 
+          lastSyncStartedAt={lastSyncStartedAt} 
+        />
       </div>
     </main>
   );
