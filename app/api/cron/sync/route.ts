@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { sourceSyncRuns, sourceProviders, housingProjects, announcements } from "@/lib/db/schema";
+import { sourceSyncRuns, sourceProviders, housingProjects, announcements, announcementSnapshots, changeEvents } from "@/lib/db/schema";
 import { ApplyHomeApiProvider } from "@/lib/sources/applyhome-api";
 import { ApplyHomeWebProvider } from "@/lib/sources/applyhome-web";
 import { LHApiProvider } from "@/lib/sources/lh-api";
 import { SHWebProvider } from "@/lib/sources/sh-web";
 import { GHWebProvider } from "@/lib/sources/gh-web";
 import { generateFingerprint } from "@/lib/normalize/announcement";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, inArray } from "drizzle-orm";
+import { compareAnnouncements, generateDiffSummary } from "@/lib/diff/announcement-diff";
+import { randomUUID } from "crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -153,6 +155,7 @@ export async function GET(request: Request) {
         housingMgmtNo: normalized.housingMgmtNo,
         atchmnflSeqNo: null as string | null,
         atchmnflSn: null as string | null,
+        normalized,
       });
     }
 
@@ -199,14 +202,159 @@ export async function GET(request: Request) {
       console.error(`[FastSync] Error in pre-discovery mapping:`, e.message);
     }
 
+    // ─── 6b. Compare announcements & detect changes ─────────────────
+    const currentAnnounceNos = annValues.map(a => a.announceNo);
+    const dbAnns = currentAnnounceNos.length > 0 
+      ? await db
+          .select()
+          .from(announcements)
+          .where(inArray(announcements.announceNo, currentAnnounceNos))
+      : [];
+    const dbAnnMap = new Map(dbAnns.map(a => [a.announceNo, a]));
+
+    const finalAnnValues = annValues.map(ann => {
+      const dbAnn = dbAnnMap.get(ann.announceNo);
+      return {
+        ...ann,
+        id: dbAnn ? dbAnn.id : randomUUID(),
+        latestSnapshotId: dbAnn ? dbAnn.latestSnapshotId : null,
+      };
+    });
+
+    const eventsToInsert: any[] = [];
+    const snapshotsToInsert: any[] = [];
+    const snapshotIdsToFetch: string[] = [];
+    const changedPairs: { ann: any; dbAnn: any }[] = [];
+
+    for (const ann of finalAnnValues) {
+      const dbAnn = dbAnnMap.get(ann.announceNo);
+
+      if (!dbAnn) {
+        // 신규 공고 등록
+        const diff = compareAnnouncements(null, ann.normalized);
+        if (diff.hasChanged) {
+          eventsToInsert.push({
+            eventType: diff.eventType,
+            entityType: "announcement",
+            entityId: ann.id,
+            syncRunId: syncRun.id,
+            previousData: null,
+            currentData: ann.normalized,
+            diffSummary: generateDiffSummary(diff),
+            severity: diff.severity,
+          });
+        }
+
+        const snapshotId = randomUUID();
+        snapshotsToInsert.push({
+          id: snapshotId,
+          announcementId: ann.id,
+          syncRunId: syncRun.id,
+          snapshotData: ann.normalized,
+          fingerprint: ann.fingerprint,
+        });
+        ann.latestSnapshotId = snapshotId;
+      } else if (dbAnn.fingerprint !== ann.fingerprint) {
+        // 기존 공고 변경
+        if (dbAnn.latestSnapshotId) {
+          snapshotIdsToFetch.push(dbAnn.latestSnapshotId);
+          changedPairs.push({ ann, dbAnn });
+        } else {
+          // 최신 스냅샷 ID가 없는 경우 폴백 비교
+          const fallbackOldData = {
+            ...ann.normalized,
+            status: dbAnn.status,
+            applyStartDate: dbAnn.applyStartDate,
+            applyEndDate: dbAnn.applyEndDate,
+            announceDate: dbAnn.announceDate,
+            winnerAnnounceDate: dbAnn.winnerAnnounceDate,
+            contractStartDate: dbAnn.contractStartDate,
+            contractEndDate: dbAnn.contractEndDate,
+          };
+          const diff = compareAnnouncements(fallbackOldData, ann.normalized);
+          if (diff.hasChanged) {
+            eventsToInsert.push({
+              eventType: diff.eventType,
+              entityType: "announcement",
+              entityId: ann.id,
+              syncRunId: syncRun.id,
+              previousData: fallbackOldData,
+              currentData: ann.normalized,
+              diffSummary: generateDiffSummary(diff),
+              severity: diff.severity,
+          });
+          }
+
+          const snapshotId = randomUUID();
+          snapshotsToInsert.push({
+            id: snapshotId,
+            announcementId: ann.id,
+            syncRunId: syncRun.id,
+            snapshotData: ann.normalized,
+            fingerprint: ann.fingerprint,
+          });
+          ann.latestSnapshotId = snapshotId;
+        }
+      }
+    }
+
+    if (snapshotIdsToFetch.length > 0) {
+      const dbSnapshots = await db
+        .select()
+        .from(announcementSnapshots)
+        .where(inArray(announcementSnapshots.id, snapshotIdsToFetch));
+      const dbSnapshotMap = new Map(dbSnapshots.map(s => [s.id, s]));
+
+      for (const { ann, dbAnn } of changedPairs) {
+        const snapshot = dbSnapshotMap.get(dbAnn.latestSnapshotId!);
+        const oldData = snapshot ? (snapshot.snapshotData as any) : null;
+
+        const diff = compareAnnouncements(oldData, ann.normalized);
+        if (diff.hasChanged) {
+          eventsToInsert.push({
+            eventType: diff.eventType,
+            entityType: "announcement",
+            entityId: ann.id,
+            syncRunId: syncRun.id,
+            previousData: oldData,
+            currentData: ann.normalized,
+            diffSummary: generateDiffSummary(diff),
+            severity: diff.severity,
+          });
+        }
+
+        const snapshotId = randomUUID();
+        snapshotsToInsert.push({
+          id: snapshotId,
+          announcementId: ann.id,
+          syncRunId: syncRun.id,
+          snapshotData: ann.normalized,
+          fingerprint: ann.fingerprint,
+        });
+        ann.latestSnapshotId = snapshotId;
+      }
+    }
+
+    // 벌크 인서트 수행 (스냅샷 & 변경이력)
+    const CHUNK = 30;
+    if (snapshotsToInsert.length > 0) {
+      for (let i = 0; i < snapshotsToInsert.length; i += CHUNK) {
+        await db.insert(announcementSnapshots).values(snapshotsToInsert.slice(i, i + CHUNK));
+      }
+    }
+    if (eventsToInsert.length > 0) {
+      for (let i = 0; i < eventsToInsert.length; i += CHUNK) {
+        await db.insert(changeEvents).values(eventsToInsert.slice(i, i + CHUNK));
+      }
+    }
+
     let upsertedCount = 0;
 
     // Batch upsert in chunks of 30 (avoid PG param limits)
-    const CHUNK = 30;
-    for (let i = 0; i < annValues.length; i += CHUNK) {
-      const rawChunk = annValues.slice(i, i + CHUNK);
-      // Strip housingMgmtNo which is a non-column field
-      const chunk = rawChunk.map(({ housingMgmtNo, ...rest }) => rest);
+    for (let i = 0; i < finalAnnValues.length; i += CHUNK) {
+      const rawChunk = finalAnnValues.slice(i, i + CHUNK);
+      // Strip non-column fields: housingMgmtNo, normalized
+      const chunk = rawChunk.map(({ housingMgmtNo, normalized, ...rest }) => rest);
       try {
         await db
           .insert(announcements)
@@ -222,6 +370,7 @@ export async function GET(request: Request) {
               homepageAdres: sql`excluded.homepage_adres`,
               externalSourceKey: sql`excluded.external_source_key`,
               fingerprint: sql`excluded.fingerprint`,
+              latestSnapshotId: sql`excluded.latest_snapshot_id`,
               // Preserve existing attachment metadata
               atchmnflSeqNo: sql`COALESCE(announcements.atchmnfl_seq_no, excluded.atchmnfl_seq_no)`,
               atchmnflSn: sql`COALESCE(announcements.atchmnfl_sn, excluded.atchmnfl_sn)`,
@@ -247,6 +396,7 @@ export async function GET(request: Request) {
                   pblancUrl: ann.pblancUrl,
                   homepageAdres: ann.homepageAdres,
                   fingerprint: ann.fingerprint,
+                  latestSnapshotId: ann.latestSnapshotId,
                   updatedAt: new Date(),
                 },
               });
