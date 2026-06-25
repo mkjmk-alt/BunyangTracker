@@ -9,22 +9,27 @@ import { getKstDateString } from "@/lib/utils";
 import Link from "next/link";
 
 async function getStats(kstToday: string) {
-  const [newAnnCount] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(announcements)
-    .where(
-      and(
-        or(
-          isNull(announcements.applyStartDate),
-          lte(announcements.applyStartDate, kstToday)
-        ),
-        or(
-          isNull(announcements.applyEndDate),
-          gte(announcements.applyEndDate, kstToday)
+  const [newAnnCountResult, changeCountResult] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(announcements)
+      .where(
+        and(
+          or(
+            isNull(announcements.applyStartDate),
+            lte(announcements.applyStartDate, kstToday)
+          ),
+          or(
+            isNull(announcements.applyEndDate),
+            gte(announcements.applyEndDate, kstToday)
+          )
         )
-      )
-    );
-  const [changeCount] = await db.select({ count: sql<number>`count(*)` }).from(changeEvents);
+      ),
+    db.select({ count: sql<number>`count(*)` }).from(changeEvents)
+  ]);
+
+  const newAnnCount = newAnnCountResult[0];
+  const changeCount = changeCountResult[0];
   
   return {
     activeAnnouncements: newAnnCount?.count || 0,
@@ -45,8 +50,10 @@ async function getRecentAnnouncements() {
 
 export default async function DashboardPage() {
   const kstToday = getKstDateString();
-  const stats = await getStats(kstToday);
-  const recentAnns = await getRecentAnnouncements();
+  const [stats, recentAnns] = await Promise.all([
+    getStats(kstToday),
+    getRecentAnnouncements(),
+  ]);
 
   return (
     <main className="container mx-auto py-8 px-4 md:px-6">

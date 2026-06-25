@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { and, eq, desc, asc, inArray, or, ilike, not } from "drizzle-orm";
+import { and, eq, desc, asc, inArray, or, ilike, not, gte, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { announcements, housingProjects, sourceSyncRuns } from "@/lib/db/schema";
 import { FilterSection } from "../../components/FilterSection";
@@ -42,6 +42,18 @@ async function getAnnouncements(
 
   if (filters.q) {
     whereConditions.push(ilike(housingProjects.name, `%${filters.q}%`));
+  } else {
+    // If no search query is specified, default to active, upcoming, or recently closed (last 30 days) announcements
+    // ponytail: reduce default payload size for faster network transfer and rendering. Bypass filter if searching.
+    const thirtyDaysAgoDate = new Date(Date.now() + 9 * 60 * 60 * 1000 - 30 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = thirtyDaysAgoDate.toISOString().split("T")[0];
+
+    whereConditions.push(
+      or(
+        isNull(announcements.applyEndDate),
+        gte(announcements.applyEndDate, thirtyDaysAgo)
+      )
+    );
   }
 
   let orderByClause = desc(announcements.announceDate);
@@ -74,13 +86,17 @@ export default async function ProjectsPage({
 }) {
   const { category = "SALE", q = "", sort = "announceDesc" } = await searchParams;
   const kstToday = getKstDateString();
-  const allAnns = await getAnnouncements({ category, q, sort });
 
-  // Get the most recent successful sync run to determine "NEW" items from the last sync
-  const lastSyncRun = await db.query.sourceSyncRuns.findFirst({
-    where: eq(sourceSyncRuns.status, "success"),
-    orderBy: [desc(sourceSyncRuns.startedAt)],
-  });
+  // Get announcements and the most recent successful sync run concurrently
+  // ponytail: parallel query execution to save RTT latency
+  const [allAnns, lastSyncRun] = await Promise.all([
+    getAnnouncements({ category, q, sort }),
+    db.query.sourceSyncRuns.findFirst({
+      where: eq(sourceSyncRuns.status, "success"),
+      orderBy: [desc(sourceSyncRuns.startedAt)],
+    })
+  ]);
+
   const lastSyncStartedAt = lastSyncRun ? lastSyncRun.startedAt.getTime() : 0;
 
   // Serialize Date fields to strings before passing to client components

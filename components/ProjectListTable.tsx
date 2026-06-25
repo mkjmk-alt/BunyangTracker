@@ -428,13 +428,13 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
                     <td className="px-4 py-4">
                       <Link 
                         href={`/projects/${ann.project?.slug}`}
-                        className="font-bold text-blue-600 hover:underline group-hover:text-blue-700 block max-w-[280px]"
+                        className="font-bold text-blue-600 hover:underline group-hover:text-blue-700 block whitespace-normal min-w-[250px] max-w-[450px] break-words"
                         title={ann.project?.name}
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="truncate max-w-[200px]">{ann.project?.name}</span>
+                        <div className="flex items-start gap-2">
+                          <span>{ann.project?.name}</span>
                           {ann.createdAt && new Date(ann.createdAt).getTime() >= lastSyncStartedAt && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-500 text-white animate-pulse shadow-sm leading-none">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-500 text-white animate-pulse shadow-sm leading-none shrink-0 mt-0.5">
                               NEW
                             </span>
                           )}
