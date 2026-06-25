@@ -113,7 +113,17 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
   useEffect(() => {
     setSelectedRegions(new Set(allRegions));
     setSelectedTypes(new Set(allTypes));
-    setSelectedStatuses(new Set(allStatuses));
+    
+    // 기본 필터로 "공고예정", "접수중" 두 가지만 선택 상태로 초기 설정
+    const defaultStatuses = ["공고예정", "접수중"];
+    const filteredDefault = allStatuses.filter(s => defaultStatuses.includes(s));
+    
+    // "공고예정"이나 "접수중" 상태가 하나도 존재하지 않는 극단적 환경에서는 기본적으로 전체 선택 상태로 둠
+    if (filteredDefault.length === 0) {
+      setSelectedStatuses(new Set(allStatuses));
+    } else {
+      setSelectedStatuses(new Set(filteredDefault));
+    }
   }, [initialProjects]);
 
   // Toggle Handlers
