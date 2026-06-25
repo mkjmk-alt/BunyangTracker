@@ -29,32 +29,34 @@ export async function GET(request: Request) {
     ];
 
     const providerIds: Record<string, string> = {};
+    const providerSyncRunIds: Record<string, string> = {};
     await Promise.all(
       providerConfigs.map(async ({ instance, label }) => {
         const existing = await db.query.sourceProviders.findFirst({
           where: eq(sourceProviders.name, instance.providerId),
         });
+        let pId = "";
         if (existing) {
-          providerIds[instance.providerId] = existing.id;
+          pId = existing.id;
         } else {
           const [created] = await db
             .insert(sourceProviders)
             .values({ name: instance.providerId, displayName: label, isActive: true })
             .returning();
-          providerIds[instance.providerId] = created.id;
+          pId = created.id;
         }
+        providerIds[instance.providerId] = pId;
+
+        const runId = randomUUID();
+        await db.insert(sourceSyncRuns).values({
+          id: runId,
+          providerId: pId,
+          status: "running",
+          startedAt: new Date(),
+        });
+        providerSyncRunIds[instance.providerId] = runId;
       })
     );
-
-    // ─── 2. Create sync run ───────────────────────────────────────
-    const [syncRun] = await db
-      .insert(sourceSyncRuns)
-      .values({
-        providerId: providerIds[providerConfigs[0].instance.providerId],
-        status: "running",
-        startedAt: new Date(),
-      })
-      .returning();
 
     // ─── 3. Fetch index from ALL providers IN PARALLEL ────────────
     const fetchResults = await Promise.all(
@@ -71,16 +73,22 @@ export async function GET(request: Request) {
     );
 
     // ─── 4. Normalize all items ───────────────────────────────────
-    const allNormalized: { normalized: any; fingerprint: string }[] = [];
+    const allNormalized: { normalized: any; fingerprint: string; providerId: string; syncRunId: string }[] = [];
     let totalFetched = 0;
 
     for (const { provider, items } of fetchResults) {
       totalFetched += items.length;
+      const sRunId = providerSyncRunIds[provider.providerId];
       for (const item of items) {
         try {
           const normalized = provider.normalize(item);
           const fingerprint = generateFingerprint(normalized);
-          allNormalized.push({ normalized, fingerprint });
+          allNormalized.push({ 
+            normalized, 
+            fingerprint, 
+            providerId: provider.providerId, 
+            syncRunId: sRunId 
+          });
         } catch (e: any) {
           console.error(`[FastSync] Normalize error:`, e.message);
         }
@@ -131,7 +139,7 @@ export async function GET(request: Request) {
 
     // ─── 6. Deduplicate & batch-upsert announcements ──────────────
     const annMap = new Map<string, any>();
-    for (const { normalized, fingerprint } of allNormalized) {
+    for (const { normalized, fingerprint, providerId, syncRunId } of allNormalized) {
       const projectId = projectIdMap.get(normalized.housingMgmtNo);
       if (!projectId || annMap.has(normalized.announceNo)) continue;
 
@@ -156,6 +164,8 @@ export async function GET(request: Request) {
         atchmnflSeqNo: null as string | null,
         atchmnflSn: null as string | null,
         normalized,
+        providerId,
+        syncRunId,
       });
     }
 
@@ -237,7 +247,7 @@ export async function GET(request: Request) {
             eventType: diff.eventType,
             entityType: "announcement",
             entityId: ann.id,
-            syncRunId: syncRun.id,
+            syncRunId: ann.syncRunId,
             previousData: null,
             currentData: ann.normalized,
             diffSummary: generateDiffSummary(diff),
@@ -249,7 +259,7 @@ export async function GET(request: Request) {
         snapshotsToInsert.push({
           id: snapshotId,
           announcementId: ann.id,
-          syncRunId: syncRun.id,
+          syncRunId: ann.syncRunId,
           snapshotData: ann.normalized,
           fingerprint: ann.fingerprint,
         });
@@ -277,7 +287,7 @@ export async function GET(request: Request) {
               eventType: diff.eventType,
               entityType: "announcement",
               entityId: ann.id,
-              syncRunId: syncRun.id,
+              syncRunId: ann.syncRunId,
               previousData: fallbackOldData,
               currentData: ann.normalized,
               diffSummary: generateDiffSummary(diff),
@@ -289,7 +299,7 @@ export async function GET(request: Request) {
           snapshotsToInsert.push({
             id: snapshotId,
             announcementId: ann.id,
-            syncRunId: syncRun.id,
+            syncRunId: ann.syncRunId,
             snapshotData: ann.normalized,
             fingerprint: ann.fingerprint,
           });
@@ -315,7 +325,7 @@ export async function GET(request: Request) {
             eventType: diff.eventType,
             entityType: "announcement",
             entityId: ann.id,
-            syncRunId: syncRun.id,
+            syncRunId: ann.syncRunId,
             previousData: oldData,
             currentData: ann.normalized,
             diffSummary: generateDiffSummary(diff),
@@ -327,7 +337,7 @@ export async function GET(request: Request) {
         snapshotsToInsert.push({
           id: snapshotId,
           announcementId: ann.id,
-          syncRunId: syncRun.id,
+          syncRunId: ann.syncRunId,
           snapshotData: ann.normalized,
           fingerprint: ann.fingerprint,
         });
@@ -408,18 +418,25 @@ export async function GET(request: Request) {
       }
     }
 
-    // ─── 7. Complete sync run ─────────────────────────────────────
+    // ─── 7. Complete sync runs individually ────────────────────────
     const elapsed = Date.now() - startTime;
-    await db
-      .update(sourceSyncRuns)
-      .set({
-        status: "success",
-        finishedAt: new Date(),
-        totalFetched,
-        totalNormalized: allNormalized.length,
-        totalUpserted: upsertedCount,
-      })
-      .where(eq(sourceSyncRuns.id, syncRun.id));
+    for (const { provider, label, status } of fetchResults) {
+      const runId = providerSyncRunIds[provider.providerId];
+      const pFetched = fetchResults.find(f => f.provider.providerId === provider.providerId)?.items.length || 0;
+      const pNormalized = allNormalized.filter(n => n.providerId === provider.providerId).length;
+      const pUpserted = finalAnnValues.filter(ann => ann.externalSourceKey?.startsWith(provider.providerId)).length;
+
+      await db
+        .update(sourceSyncRuns)
+        .set({
+          status: status === "success" ? "success" : "failed",
+          finishedAt: new Date(),
+          totalFetched: pFetched,
+          totalNormalized: pNormalized,
+          totalUpserted: pUpserted,
+        })
+        .where(eq(sourceSyncRuns.id, runId));
+    }
 
     console.log(`[FastSync] Done in ${elapsed}ms`);
 
