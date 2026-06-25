@@ -36,11 +36,44 @@ export function SyncButton() {
       localStorage.setItem("lastSyncEnd", endTimeStr);
 
       if (response.ok) {
-        alert("수집이 완료되었습니다!");
+        const result = await response.json();
+        
+        let detailsMessage = "";
+        if (result.providers && Array.isArray(result.providers)) {
+          detailsMessage = result.providers.map((p: any) => {
+            const statusEmoji = p.status === "success" ? "✅" : "❌";
+            const errorMsg = p.error ? ` (에러: ${p.error})` : "";
+            // Format labels for user display
+            let typeLabel = "실시간 크롤링";
+            if (p.name.includes("api")) {
+              typeLabel = "공식 API";
+            }
+            return `• [${typeLabel}] ${p.label}: ${statusEmoji} ${p.fetched}개 수집${errorMsg}`;
+          }).join("\n");
+        }
+
+        const successMessage = [
+          "🎉 수집이 완료되었습니다!",
+          `• 소요 시간: ${(result.elapsedMs / 1000).toFixed(1)}초`,
+          `• 총 수집 건수: ${result.totalFetched}개`,
+          `• 신규/변경 주택 수: ${result.totalProjects}개`,
+          `• 신규/변경 공고 수: ${result.totalAnnouncements}개`,
+          "",
+          "[수집 방식별 상세 내역]",
+          detailsMessage
+        ].filter(line => line !== "").join("\n");
+
+        alert(successMessage);
         router.refresh();
       } else {
-        const error = await response.text();
-        alert(`수집 실패: ${error}`);
+        let errorMsg = "";
+        try {
+          const errJson = await response.json();
+          errorMsg = errJson.error || JSON.stringify(errJson);
+        } catch {
+          errorMsg = await response.text();
+        }
+        alert(`수집 실패: ${errorMsg}`);
       }
     } catch (error) {
       console.error(error);

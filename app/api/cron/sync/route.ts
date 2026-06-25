@@ -56,14 +56,14 @@ export async function GET(request: Request) {
 
     // ─── 3. Fetch index from ALL providers IN PARALLEL ────────────
     const fetchResults = await Promise.all(
-      providerConfigs.map(async ({ instance }) => {
+      providerConfigs.map(async ({ instance, label }) => {
         try {
           const items = await instance.fetchIndex({ perPage });
           console.log(`[FastSync] ${instance.providerId}: ${items.length} items`);
-          return { provider: instance, items };
+          return { provider: instance, label, items, status: "success", error: null };
         } catch (e: any) {
           console.error(`[FastSync] Fetch error ${instance.providerId}:`, e.message);
-          return { provider: instance, items: [] as any[] };
+          return { provider: instance, label, items: [] as any[], status: "failed", error: e.message as string };
         }
       })
     );
@@ -273,12 +273,21 @@ export async function GET(request: Request) {
 
     console.log(`[FastSync] Done in ${elapsed}ms`);
 
+    const providerDetails = fetchResults.map(r => ({
+      name: r.provider.providerId,
+      label: r.label,
+      fetched: r.items.length,
+      status: r.status,
+      error: r.error
+    }));
+
     return NextResponse.json({
       success: true,
       totalFetched,
       totalProjects: projectIdMap.size,
       totalAnnouncements: upsertedCount,
       elapsedMs: elapsed,
+      providers: providerDetails
     });
   } catch (error: any) {
     console.error(`[FastSync] Critical:`, error);
