@@ -335,22 +335,10 @@ export async function GET(request: Request) {
       }
     }
 
-    // 벌크 인서트 수행 (스냅샷 & 변경이력)
-    const CHUNK = 30;
-    if (snapshotsToInsert.length > 0) {
-      for (let i = 0; i < snapshotsToInsert.length; i += CHUNK) {
-        await db.insert(announcementSnapshots).values(snapshotsToInsert.slice(i, i + CHUNK));
-      }
-    }
-    if (eventsToInsert.length > 0) {
-      for (let i = 0; i < eventsToInsert.length; i += CHUNK) {
-        await db.insert(changeEvents).values(eventsToInsert.slice(i, i + CHUNK));
-      }
-    }
-
     let upsertedCount = 0;
+    const CHUNK = 30;
 
-    // Batch upsert in chunks of 30 (avoid PG param limits)
+    // 1. Batch upsert announcements first to avoid Foreign Key constraints on snapshots
     for (let i = 0; i < finalAnnValues.length; i += CHUNK) {
       const rawChunk = finalAnnValues.slice(i, i + CHUNK);
       // Strip non-column fields: housingMgmtNo, normalized
@@ -405,6 +393,18 @@ export async function GET(request: Request) {
             console.error(`[FastSync] Ann ${ann.announceNo}:`, e2.message);
           }
         }
+      }
+    }
+
+    // 2. Perform bulk inserts for snapshots & changeEvents now that parent announcements exist
+    if (snapshotsToInsert.length > 0) {
+      for (let i = 0; i < snapshotsToInsert.length; i += CHUNK) {
+        await db.insert(announcementSnapshots).values(snapshotsToInsert.slice(i, i + CHUNK));
+      }
+    }
+    if (eventsToInsert.length > 0) {
+      for (let i = 0; i < eventsToInsert.length; i += CHUNK) {
+        await db.insert(changeEvents).values(eventsToInsert.slice(i, i + CHUNK));
       }
     }
 
