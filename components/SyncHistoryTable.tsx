@@ -44,6 +44,7 @@ export function SyncHistoryTable({ initialRuns }: Props) {
       lh_api: "LH 청약플러스",
       sh_web: "SH 서울주택공사",
       gh_web: "GH 경기주택공사",
+      myhome_api: "마이홈포털",
     };
     return map[name] || name;
   };
@@ -55,6 +56,7 @@ export function SyncHistoryTable({ initialRuns }: Props) {
       lh_api: "bg-purple-100 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400 border-purple-200/50",
       sh_web: "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border-amber-200/50",
       gh_web: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border-indigo-200/50",
+      myhome_api: "bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400 border-rose-200/50",
     };
     return `inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border ${map[name] || "bg-gray-100 text-gray-700"}`;
   };

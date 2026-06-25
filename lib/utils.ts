@@ -88,5 +88,11 @@ export function getSourceBadge(key: string | null | undefined) {
       className: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-900/30" 
     };
   }
+  if (key.startsWith("myhome_api")) {
+    return { 
+      label: "마이홈 연동", 
+      className: "bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400 border border-rose-200/50 dark:border-rose-900/30" 
+    };
+  }
   return null;
 }
