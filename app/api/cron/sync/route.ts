@@ -9,7 +9,7 @@ import { GHWebProvider } from "@/lib/sources/gh-web";
 import { LHWebProvider } from "@/lib/sources/lh-web";
 import { MyHomeApiProvider } from "@/lib/sources/myhome-api";
 import { generateFingerprint } from "@/lib/normalize/announcement";
-import { eq, sql, inArray } from "drizzle-orm";
+import { eq, sql, inArray, and, gte, like } from "drizzle-orm";
 import { compareAnnouncements, generateDiffSummary } from "@/lib/diff/announcement-diff";
 import { randomUUID } from "crypto";
 
@@ -420,6 +420,115 @@ export async function GET(request: Request) {
       for (let i = 0; i < eventsToInsert.length; i += CHUNK) {
         await db.insert(changeEvents).values(eventsToInsert.slice(i, i + CHUNK));
       }
+    }
+
+    // ─── 6c. Web-to-API Upgrade Fallback ────────────────────────────
+    // ponytail: Auto-upgrade previous web-scraped announcements to official API data when it becomes available
+    try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
+
+      const webAnns = await db
+        .select()
+        .from(announcements)
+        .where(
+          and(
+            like(announcements.externalSourceKey, "applyhome_web:%"),
+            gte(announcements.announceDate, thirtyDaysAgoStr)
+          )
+        );
+
+      if (webAnns.length > 0) {
+        console.log(`[FastSync] Found ${webAnns.length} web-sourced announcements to check for API upgrade...`);
+        const apiProvider = new ApplyHomeApiProvider();
+
+        for (const webAnn of webAnns) {
+          try {
+            console.log(`[FastSync] Checking upgrade for ${webAnn.announceNo}...`);
+            const rawApiDetail = await apiProvider.fetchDetail(webAnn.announceNo);
+            const apiNorm = apiProvider.normalize(rawApiDetail);
+            const apiFingerprint = generateFingerprint(apiNorm);
+
+            const diff = compareAnnouncements(
+              {
+                ...apiNorm,
+                status: webAnn.status as any,
+                applyStartDate: webAnn.applyStartDate,
+                applyEndDate: webAnn.applyEndDate,
+                announceDate: webAnn.announceDate,
+                winnerAnnounceDate: webAnn.winnerAnnounceDate,
+              },
+              apiNorm
+            );
+
+            const snapshotId = randomUUID();
+            await db.transaction(async (tx) => {
+              await tx
+                .update(announcements)
+                .set({
+                  externalSourceKey: apiNorm.externalSourceKey,
+                  fingerprint: apiFingerprint,
+                  latestSnapshotId: snapshotId,
+                  supplyType: apiNorm.supplyType,
+                  status: apiNorm.status,
+                  displayStatus: apiNorm.displayStatus || null,
+                  announceDate: apiNorm.announceDate,
+                  applyStartDate: apiNorm.applyStartDate,
+                  applyEndDate: apiNorm.applyEndDate,
+                  winnerAnnounceDate: apiNorm.winnerAnnounceDate,
+                  contractStartDate: apiNorm.contractStartDate,
+                  contractEndDate: apiNorm.contractEndDate,
+                  moveInDate: apiNorm.moveInDate,
+                  pblancUrl: apiNorm.pblancUrl,
+                  homepageAdres: apiNorm.homepageAdres,
+                  updatedAt: new Date(),
+                })
+                .where(eq(announcements.id, webAnn.id));
+
+              await tx
+                .update(housingProjects)
+                .set({
+                  name: apiNorm.name,
+                  address: apiNorm.address,
+                  builderName: apiNorm.builderName,
+                  developerName: apiNorm.developerName,
+                  totalHouseholds: apiNorm.totalHouseholds,
+                  externalSourceKey: apiNorm.externalSourceKey,
+                  updatedAt: new Date(),
+                })
+                .where(eq(housingProjects.id, webAnn.projectId));
+
+              await tx.insert(announcementSnapshots).values({
+                id: snapshotId,
+                announcementId: webAnn.id,
+                syncRunId: providerSyncRunIds.applyhome_api || randomUUID(),
+                snapshotData: apiNorm,
+                fingerprint: apiFingerprint,
+              });
+
+              if (diff.hasChanged) {
+                await tx.insert(changeEvents).values({
+                  eventType: "SCHEDULE_CHANGED",
+                  entityType: "announcement",
+                  entityId: webAnn.id,
+                  syncRunId: providerSyncRunIds.applyhome_api || null,
+                  previousData: webAnn,
+                  currentData: apiNorm,
+                  diffSummary: `Source upgraded to Official API. ${generateDiffSummary(diff)}`,
+                  severity: "info",
+                });
+              }
+            });
+
+            console.log(`[FastSync] Successfully upgraded ${webAnn.announceNo} to official API.`);
+          } catch (e: any) {
+            console.log(`[FastSync] Announcement ${webAnn.announceNo} not ready for upgrade: ${e.message}`);
+          }
+        }
+      }
+    } catch (e: any) {
+      console.error(`[FastSync] Web-to-API upgrade process failed:`, e.message);
     }
 
     // ─── 7. Complete sync runs individually ────────────────────────

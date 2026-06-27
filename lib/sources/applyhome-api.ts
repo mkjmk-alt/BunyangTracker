@@ -81,7 +81,42 @@ export class ApplyHomeApiProvider implements SourceProvider<ApplyHomeApt> {
   }
 
   async fetchDetail(id: string): Promise<ApplyHomeApt> {
-    throw new Error("Method not implemented.");
+    const apiKey = process.env.PUBLIC_DATA_API_KEY || "";
+    if (!apiKey) throw new Error("PUBLIC_DATA_API_KEY is not defined");
+
+    // ponytail: search across endpoints until matching project is found
+    for (const [type, operation] of Object.entries(ENDPOINTS)) {
+      try {
+        const params = new URLSearchParams({
+          page: "1",
+          perPage: "10",
+          returnType: "JSON",
+          "cond[HOUSE_MANAGE_NO::EQ]": id,
+          serviceKey: apiKey.trim()
+        });
+
+        const url = `${this.baseUri}/${operation}?${params.toString()}`;
+        const res = await fetch(url);
+        if (!res.ok) continue;
+
+        const text = await res.text();
+        const data = JSON.parse(text);
+        const rawItem = data.data?.[0];
+
+        if (rawItem) {
+          const item = {
+            ...rawItem,
+            _type: type,
+            SUBSCRPT_RCEPT_BGNDE: rawItem.SUBSCRPT_RCEPT_BGNDE || rawItem.RCEPT_BGNDE,
+            SUBSCRPT_RCEPT_ENDDE: rawItem.SUBSCRPT_RCEPT_ENDDE || rawItem.RCEPT_ENDDE,
+          };
+          return ApplyHomeAptSchema.parse(item);
+        }
+      } catch (e: any) {
+        console.error(`[ApplyHome] Error in fetchDetail for ${type} (ID: ${id}):`, e.message);
+      }
+    }
+    throw new Error(`Announcement ${id} not found in any ApplyHome API endpoints`);
   }
 
   async fetchUnits(houseManageNo: string, pblancNo: string, type: string = "APT"): Promise<any[]> {
