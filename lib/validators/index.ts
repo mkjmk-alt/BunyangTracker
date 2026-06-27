@@ -98,6 +98,23 @@ export const LHAnnouncementSchema = z.object({
 
 export type LHAnnouncement = z.infer<typeof LHAnnouncementSchema>;
 
+// LH 웹 스크래핑 스케마
+export const LHWebAnnouncementSchema = z.object({
+  panId: z.string(),
+  ccrCnntSysDsCd: z.string(),
+  uppAisTpCd: z.string(),
+  aisTpCd: z.string(),
+  title: z.string(),
+  type: z.string(),
+  region: z.string().optional().nullable(),
+  startDate: z.string().optional().nullable(),
+  endDate: z.string().optional().nullable(),
+  status: z.string().optional().nullable(),
+  mi: z.string(), // menu id: 1026=임대, 1027=분양
+});
+
+export type LHWebAnnouncement = z.infer<typeof LHWebAnnouncementSchema>;
+
 // SH API/Web Scraping Schema
 export const SHAnnouncementSchema = z.object({
   seq: z.string(),
