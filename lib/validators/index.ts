@@ -161,3 +161,19 @@ export const MyHomeAnnouncementSchema = z.object({
 }).passthrough();
 
 export type MyHomeAnnouncement = z.infer<typeof MyHomeAnnouncementSchema>;
+
+export const IHAnnouncementSchema = z.object({
+  seq: z.string(),
+  title: z.string(),
+  date: z.string().optional().nullable(),
+}).passthrough();
+
+export type IHAnnouncement = z.infer<typeof IHAnnouncementSchema>;
+
+export const BMCAnnouncementSchema = z.object({
+  dataSid: z.string(),
+  title: z.string(),
+  date: z.string().optional().nullable(),
+}).passthrough();
+
+export type BMCAnnouncement = z.infer<typeof BMCAnnouncementSchema>;

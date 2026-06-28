@@ -10,7 +10,7 @@ import { getKstDateString } from "@/lib/utils";
 
 const TYPE_GROUPS = {
   SALE: ["APT", "무순위", "임의공급", "불법행위 재공급", "공공분양", "공공분양주택", "분양주택", "도시형/오피스텔/생활숙박시설/민간임대"],
-  RENT: ["행복주택", "국민임대", "영구임대", "공공임대", "공공지원민간임대", "민간임대"]
+  RENT: ["행복주택", "국민임대", "영구임대", "공공임대", "공공지원민간임대", "민간임대", "SH임대주택", "GH임대주택", "IH임대주택", "BMC임대주택"]
 };
 
 async function getAnnouncements(

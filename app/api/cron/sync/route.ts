@@ -8,6 +8,8 @@ import { SHWebProvider } from "@/lib/sources/sh-web";
 import { GHWebProvider } from "@/lib/sources/gh-web";
 import { LHWebProvider } from "@/lib/sources/lh-web";
 import { MyHomeApiProvider } from "@/lib/sources/myhome-api";
+import { IHWebProvider } from "@/lib/sources/ih-web";
+import { BMCWebProvider } from "@/lib/sources/bmc-web";
 import { generateFingerprint } from "@/lib/normalize/announcement";
 import { eq, sql, inArray, and, gte, like } from "drizzle-orm";
 import { compareAnnouncements, generateDiffSummary } from "@/lib/diff/announcement-diff";
@@ -31,6 +33,8 @@ export async function GET(request: Request) {
       { instance: new SHWebProvider(), label: "SH 서울주택도시공사 실시간 웹 (분양/임대)" },
       { instance: new GHWebProvider(), label: "GH 경기주택도시공사 실시간 웹 (청약공고)" },
       { instance: new MyHomeApiProvider(), label: "마이홈포털 (전국 임대/분양 통합)" },
+      { instance: new IHWebProvider(), label: "iH 인천도시공사 실시간 웹 (분양/임대)" },
+      { instance: new BMCWebProvider(), label: "BMC 부산도시공사 실시간 웹 (분양/임대)" },
     ];
 
     const providerIds: Record<string, string> = {};
