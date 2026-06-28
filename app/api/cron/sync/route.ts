@@ -147,12 +147,14 @@ export async function GET(request: Request) {
     console.log(`[FastSync] Projects upserted: ${projectIdMap.size}`);
 
     // ─── 6. Deduplicate & batch-upsert announcements ──────────────
-    const annMap = new Map<string, any>();
+    // ─── 6. Deduplicate & batch-upsert announcements ──────────────
+    // ponytail: Perform intelligent deduplication by matching highly similar names and clean announcement schedules
+    const candidateAnns: any[] = [];
     for (const { normalized, fingerprint, providerId, syncRunId } of allNormalized) {
       const projectId = projectIdMap.get(normalized.housingMgmtNo);
-      if (!projectId || annMap.has(normalized.announceNo)) continue;
+      if (!projectId) continue;
 
-      annMap.set(normalized.announceNo, {
+      candidateAnns.push({
         projectId,
         announceNo: normalized.announceNo,
         supplyType: normalized.supplyType,
@@ -170,6 +172,8 @@ export async function GET(request: Request) {
         externalSourceKey: normalized.externalSourceKey,
         fingerprint,
         housingMgmtNo: normalized.housingMgmtNo,
+        name: normalized.name,
+        address: normalized.address || "",
         atchmnflSeqNo: null as string | null,
         atchmnflSn: null as string | null,
         normalized,
@@ -178,7 +182,90 @@ export async function GET(request: Request) {
       });
     }
 
-    const annValues = Array.from(annMap.values());
+    // Matching Helper Functions
+    function cleanNameForMatching(name: string): string {
+      return name
+        .replace(/\[[^\]]*?\]/g, "") // remove bracket prefixes like [서울지역본부]
+        .replace(/\([^\)]*?\)/g, "") // remove suffix info like (2026.06.26)
+        .replace(/[^가-힣a-zA-Z0-9]/g, "") // alphanumeric + Korean characters only
+        .replace(/26년/g, "2026년")
+        .trim();
+    }
+
+    function isSameAnnouncement(a: any, b: any): boolean {
+      // 1. Same announceNo is an absolute match
+      if (a.announceNo === b.announceNo) return true;
+
+      // 2. Region check (First 2 chars of address must be the same if present)
+      const regA = (a.address || "").substring(0, 2);
+      const regB = (b.address || "").substring(0, 2);
+      if (regA && regB && regA !== regB) return false;
+
+      // 3. Date check (Dates must be within 2 days)
+      if (a.announceDate && b.announceDate) {
+        const diffMs = Math.abs(new Date(a.announceDate).getTime() - new Date(b.announceDate).getTime());
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+        if (diffDays > 2) return false;
+      }
+
+      // 4. Normalized name match
+      const cleanA = cleanNameForMatching(a.name);
+      const cleanB = cleanNameForMatching(b.name);
+      if (cleanA === cleanB) return true;
+
+      // 5. High-similarity substring match (length difference <= 6)
+      if (cleanA.includes(cleanB) || cleanB.includes(cleanA)) {
+        if (Math.abs(cleanA.length - cleanB.length) <= 6) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    // Merge two matched announcements (giving priority to Web details/urls but API dates)
+    function mergeAnnouncements(dest: any, src: any): any {
+      // Choose best text details (Web scraping often has better URLs)
+      if (!dest.pblancUrl && src.pblancUrl) dest.pblancUrl = src.pblancUrl;
+      if (!dest.homepageAdres && src.homepageAdres) dest.homepageAdres = src.homepageAdres;
+      
+      // Dates (API often has cleaner date ranges)
+      if (!dest.announceDate && src.announceDate) dest.announceDate = src.announceDate;
+      if (!dest.applyStartDate && src.applyStartDate) dest.applyStartDate = src.applyStartDate;
+      if (!dest.applyEndDate && src.applyEndDate) dest.applyEndDate = src.applyEndDate;
+      if (!dest.winnerAnnounceDate && src.winnerAnnounceDate) dest.winnerAnnounceDate = src.winnerAnnounceDate;
+      if (!dest.contractStartDate && src.contractStartDate) dest.contractStartDate = src.contractStartDate;
+      if (!dest.contractEndDate && src.contractEndDate) dest.contractEndDate = src.contractEndDate;
+
+      // Source Key prioritize web detail mapping
+      const priorityKeys = ["lh_web", "sh_web", "gh_web", "ih_web", "bmc_web"];
+      const isSrcPriority = priorityKeys.some(key => src.externalSourceKey.startsWith(key));
+      const isDestPriority = priorityKeys.some(key => dest.externalSourceKey.startsWith(key));
+      
+      if (isSrcPriority && !isDestPriority) {
+        dest.externalSourceKey = src.externalSourceKey;
+        dest.pblancUrl = src.pblancUrl || dest.pblancUrl;
+      }
+
+      return dest;
+    }
+
+    const mergedAnns: any[] = [];
+    for (const cand of candidateAnns) {
+      let matched = false;
+      for (const existing of mergedAnns) {
+        if (isSameAnnouncement(existing, cand)) {
+          mergeAnnouncements(existing, cand);
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        mergedAnns.push(cand);
+      }
+    }
+
+    const annValues = mergedAnns;
 
     // ─── 6a. Auto-discover attachments for new/incomplete ApplyHome announcements ───
     // ponytail: run attachment discovery in parallel chunks to dramatically reduce total execution time, or skip if fast mode is active
