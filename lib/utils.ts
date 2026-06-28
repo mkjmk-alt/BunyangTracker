@@ -114,3 +114,17 @@ export function getSourceBadge(key: string | null | undefined) {
   }
   return null;
 }
+
+export function isHousingRecruitment(title: string): boolean {
+  const cleanTitle = title.trim();
+
+  // 1. Exclude keywords (noise, non-residential, administrative notices)
+  const excludePattern = /결과\s*발표|선정\s*결과|심사\s*결과|당첨자|계약\s*결과|안내문|서류\s*제출|회의록|경진대회|확인증|평가위원|수행기관|안전점검|입찰|보조사업자|상가|토지|보상|공지사항/i;
+  if (excludePattern.test(cleanTitle)) {
+    return false;
+  }
+
+  // 2. Allowed positive matches (recruitment keywords)
+  const includePattern = /모집|공고|입주자|입주대기자|재공급|선정/i;
+  return includePattern.test(cleanTitle);
+}

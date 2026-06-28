@@ -13,6 +13,7 @@ import { BMCWebProvider } from "@/lib/sources/bmc-web";
 import { generateFingerprint } from "@/lib/normalize/announcement";
 import { eq, sql, inArray, and, gte, like } from "drizzle-orm";
 import { compareAnnouncements, generateDiffSummary } from "@/lib/diff/announcement-diff";
+import { isHousingRecruitment } from "@/lib/utils";
 import { randomUUID } from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -91,6 +92,12 @@ export async function GET(request: Request) {
       for (const item of items) {
         try {
           const normalized = provider.normalize(item);
+          
+          // ponytail: Skip non-housing recruitment messages (commercial bids, lists of results, announcements, etc.)
+          if (!isHousingRecruitment(normalized.name)) {
+            continue;
+          }
+
           const fingerprint = generateFingerprint(normalized);
           allNormalized.push({ 
             normalized, 
