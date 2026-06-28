@@ -113,11 +113,13 @@ async function getProjectDetails(slug: string) {
 export default async function ProjectDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  if (!slug) {
-    notFound();
+  let decodedSlug = slug;
+  try {
+    decodedSlug = decodeURIComponent(slug);
+  } catch (err) {
+    console.warn("[SafeDecode] Malformed URL slug, falling back to raw:", slug);
   }
 
-  const decodedSlug = decodeURIComponent(slug);
   const project = await getProjectDetails(decodedSlug);
 
   if (!project) {
