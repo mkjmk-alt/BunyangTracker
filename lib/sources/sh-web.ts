@@ -130,12 +130,16 @@ export class SHWebProvider implements SourceProvider<SHAnnouncement> {
     // Map board path dynamically based on notice / rent type
     const pblancUrl = `${this.baseUrl}/${raw.domain}/lay2/program/${raw.boardId}/www/brd/${raw.menuId}/view.do?seq=${raw.seq}`;
 
+    const isRental = 
+      raw._type === "rent" || 
+      /임대|행복주택|국민임대|영구임대|매입임대|전세임대|장기전세|희망하우징|청년주택|사회주택|원룸/i.test(cleanTitle);
+
     return {
       housingMgmtNo: `sh-${raw.seq}`,
       announceNo: `sh-${raw.seq}`,
       name: cleanTitle,
       slug,
-      supplyType: raw._type === "rent" ? "SH임대주택" : "SH분양주택",
+      supplyType: isRental ? "SH임대주택" : "SH분양주택",
       status: "OPEN",
       displayStatus: "접수중",
       announceDate: raw.date || null,
