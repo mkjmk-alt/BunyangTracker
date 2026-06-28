@@ -117,7 +117,8 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
     notFound();
   }
 
-  const project = await getProjectDetails(slug);
+  const decodedSlug = decodeURIComponent(slug);
+  const project = await getProjectDetails(decodedSlug);
 
   if (!project) {
     notFound();
