@@ -19,6 +19,7 @@ export async function GET(request: Request) {
   const startTime = Date.now();
   const { searchParams } = new URL(request.url);
   const perPage = parseInt(searchParams.get("perPage") || "80");
+  const fast = searchParams.get("fast") === "true";
 
   try {
     // ─── 1. Register providers (parallel) ─────────────────────────
@@ -176,44 +177,64 @@ export async function GET(request: Request) {
     const annValues = Array.from(annMap.values());
 
     // ─── 6a. Auto-discover attachments for new/incomplete ApplyHome announcements ───
-    try {
-      const existingAnns = await db.select({
-        announceNo: announcements.announceNo,
-        atchmnflSeqNo: announcements.atchmnflSeqNo,
-        atchmnflSn: announcements.atchmnflSn,
-      }).from(announcements);
-      const existingMap = new Map(existingAnns.map(a => [a.announceNo, a]));
-      
-      const provider = new ApplyHomeApiProvider();
-      
-      for (const ann of annValues) {
-        if (ann.externalSourceKey.startsWith("applyhome_api") || ann.externalSourceKey.startsWith("applyhome_web")) {
-          const existing = existingMap.get(ann.announceNo);
-          if (!existing || !existing.atchmnflSeqNo) {
-            console.log(`[FastSync] Auto-discovering attachments for announcement ${ann.announceNo}...`);
-            try {
-              const attachments = await provider.discoverAttachments(
-                ann.housingMgmtNo,
-                ann.announceNo,
-                ann.pblancUrl || undefined,
-                ann.supplyType
-              );
-              ann.atchmnflSeqNo = attachments.seqNo || "NONE";
-              ann.atchmnflSn = attachments.sn || "NONE";
-              console.log(`[FastSync] Discovered attachments for ${ann.announceNo}: seqNo=${ann.atchmnflSeqNo}, sn=${ann.atchmnflSn}`);
-            } catch (err: any) {
-              console.error(`[FastSync] Attachment discovery failed for ${ann.announceNo}:`, err.message);
-              ann.atchmnflSeqNo = "NONE";
-              ann.atchmnflSn = "NONE";
+    // ponytail: run attachment discovery in parallel chunks to dramatically reduce total execution time, or skip if fast mode is active
+    if (!fast) {
+      try {
+        const existingAnns = await db.select({
+          announceNo: announcements.announceNo,
+          atchmnflSeqNo: announcements.atchmnflSeqNo,
+          atchmnflSn: announcements.atchmnflSn,
+        }).from(announcements);
+        const existingMap = new Map(existingAnns.map(a => [a.announceNo, a]));
+        
+        const provider = new ApplyHomeApiProvider();
+        
+        // Filter target items that need attachment discovery
+        const discoveryTargets = annValues.filter(ann => {
+          if (ann.externalSourceKey.startsWith("applyhome_api") || ann.externalSourceKey.startsWith("applyhome_web")) {
+            const existing = existingMap.get(ann.announceNo);
+            if (!existing || !existing.atchmnflSeqNo) {
+              return true;
+            } else {
+              ann.atchmnflSeqNo = existing.atchmnflSeqNo;
+              ann.atchmnflSn = existing.atchmnflSn;
             }
-          } else {
-            ann.atchmnflSeqNo = existing.atchmnflSeqNo;
-            ann.atchmnflSn = existing.atchmnflSn;
           }
+          return false;
+        });
+
+        if (discoveryTargets.length > 0) {
+          console.log(`[FastSync] Auto-discovering attachments for ${discoveryTargets.length} announcements...`);
+          
+          const concurrencyLimit = 5;
+          for (let i = 0; i < discoveryTargets.length; i += concurrencyLimit) {
+            const chunk = discoveryTargets.slice(i, i + concurrencyLimit);
+            await Promise.all(
+              chunk.map(async (ann) => {
+                try {
+                  const attachments = await provider.discoverAttachments(
+                    ann.housingMgmtNo,
+                    ann.announceNo,
+                    ann.pblancUrl || undefined,
+                    ann.supplyType
+                  );
+                  ann.atchmnflSeqNo = attachments.seqNo || "NONE";
+                  ann.atchmnflSn = attachments.sn || "NONE";
+                } catch (err: any) {
+                  console.error(`[FastSync] Attachment discovery failed for ${ann.announceNo}:`, err.message);
+                  ann.atchmnflSeqNo = "NONE";
+                  ann.atchmnflSn = "NONE";
+                }
+              })
+            );
+          }
+          console.log(`[FastSync] Finished auto-discovering attachments.`);
         }
+      } catch (e: any) {
+        console.error(`[FastSync] Error in pre-discovery mapping:`, e.message);
       }
-    } catch (e: any) {
-      console.error(`[FastSync] Error in pre-discovery mapping:`, e.message);
+    } else {
+      console.log(`[FastSync] Fast mode active: Skipping attachment auto-discovery.`);
     }
 
     // ─── 6b. Compare announcements & detect changes ─────────────────
@@ -424,7 +445,8 @@ export async function GET(request: Request) {
 
     // ─── 6c. Web-to-API Upgrade Fallback ────────────────────────────
     // ponytail: Auto-upgrade previous web-scraped announcements to official API data when it becomes available
-    try {
+    if (!fast) {
+      try {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
@@ -527,8 +549,11 @@ export async function GET(request: Request) {
           }
         }
       }
-    } catch (e: any) {
-      console.error(`[FastSync] Web-to-API upgrade process failed:`, e.message);
+      } catch (e: any) {
+        console.error(`[FastSync] Web-to-API upgrade process failed:`, e.message);
+      }
+    } else {
+      console.log(`[FastSync] Fast mode active: Skipping Web-to-API upgrade process.`);
     }
 
     // ─── 7. Complete sync runs individually ────────────────────────
