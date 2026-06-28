@@ -101,7 +101,19 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
   };
 
   // Get unique lists of data in current list
-  const allRegions = Array.from(new Set(initialProjects.map(getRegionLabel))).sort();
+  const regionPriorityOrder = ["서울특별시", "인천광역시", "경기도"];
+  const allRegions = Array.from(new Set(initialProjects.map(getRegionLabel))).sort((a, b) => {
+    const idxA = regionPriorityOrder.indexOf(a);
+    const idxB = regionPriorityOrder.indexOf(b);
+
+    if (idxA !== -1 && idxB !== -1) {
+      return idxA - idxB;
+    }
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+
+    return a.localeCompare(b);
+  });
   const allTypes = Array.from(new Set(initialProjects.map(p => p.supplyType))).sort();
   const allStatuses = Array.from(
     new Set(
