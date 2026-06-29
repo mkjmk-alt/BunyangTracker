@@ -65,6 +65,10 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
 
+  // Hidden/Restore States
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [showHiddenOnly, setShowHiddenOnly] = useState(false);
+
   // Dropdown open states
   const [regionFilterOpen, setRegionFilterOpen] = useState(false);
   const [typeFilterOpen, setTypeFilterOpen] = useState(false);
@@ -138,6 +142,37 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
     }
   }, [initialProjects]);
 
+  // Load hidden IDs from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("hidden_announcement_ids");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setHiddenIds(new Set(parsed));
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load hidden IDs:", err);
+    }
+  }, []);
+
+  // Helper to hide an announcement
+  const hideAnnouncement = (id: string) => {
+    const next = new Set(hiddenIds);
+    next.add(id);
+    setHiddenIds(next);
+    localStorage.setItem("hidden_announcement_ids", JSON.stringify(Array.from(next)));
+  };
+
+  // Helper to restore a hidden announcement
+  const restoreAnnouncement = (id: string) => {
+    const next = new Set(hiddenIds);
+    next.delete(id);
+    setHiddenIds(next);
+    localStorage.setItem("hidden_announcement_ids", JSON.stringify(Array.from(next)));
+  };
+
   // Toggle Handlers
   const toggleRegion = (region: string) => {
     const next = new Set(selectedRegions);
@@ -195,6 +230,10 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
 
   // Filtered List
   const filteredProjects = initialProjects.filter(p => {
+    const isHidden = hiddenIds.has(p.id);
+    if (showHiddenOnly && !isHidden) return false;
+    if (!showHiddenOnly && isHidden) return false;
+
     const r = getRegionLabel(p);
     const t = p.supplyType;
     const s = getDynamicStatus(p.applyStartDate, p.applyEndDate, kstToday).displayStatus;
@@ -216,16 +255,28 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
           <span>•</span>
           <span>검색결과 <strong className="text-primary font-bold">{filteredProjects.length}</strong>개</span>
         </div>
-        <button 
-          onClick={() => {
-            setSelectedRegions(new Set(allRegions));
-            setSelectedTypes(new Set(allTypes));
-            setSelectedStatuses(new Set(allStatuses));
-          }}
-          className="text-primary hover:underline font-semibold"
-        >
-          필터 초기화 (모두 선택)
-        </button>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => {
+              setSelectedRegions(new Set(allRegions));
+              setSelectedTypes(new Set(allTypes));
+              setSelectedStatuses(new Set(allStatuses));
+            }}
+            className="text-primary hover:underline font-semibold"
+          >
+            필터 초기화 (모두 선택)
+          </button>
+          <span className="text-muted-foreground/30">|</span>
+          <label className="flex items-center gap-2 font-bold text-foreground cursor-pointer hover:text-primary transition-colors">
+            <input 
+              type="checkbox" 
+              checked={showHiddenOnly} 
+              onChange={(e) => setShowHiddenOnly(e.target.checked)} 
+              className="rounded accent-primary w-4 h-4 cursor-pointer" 
+            />
+            <span>숨긴 공고만 모아보기 ({hiddenIds.size})</span>
+          </label>
+        </div>
       </div>
 
       <div className="w-full pb-4 max-w-full overflow-hidden">
@@ -349,6 +400,7 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
                 <th className="px-4 py-4">모집공고일</th>
                 <th className="px-4 py-4">청약기간</th>
                 <th className="px-4 py-4">당첨자발표</th>
+                <th className="px-4 py-4 text-center w-[100px]">관리</th>
 
                 {/* Status Filter Header */}
                 <th className="px-4 py-4 text-center relative w-[130px]">
@@ -470,6 +522,32 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
                     </td>
                     <td className="px-4 py-4 text-xs">{ann.winnerAnnounceDate || "-"}</td>
                     <td className="px-4 py-4 text-center">
+                      {showHiddenOnly ? (
+                        <button
+                          onClick={() => restoreAnnouncement(ann.id)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-500/5 hover:bg-blue-500/10 border border-blue-500/15 transition-all subtle-shadow"
+                          title="숨김 목록에서 복원"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          <span>복원</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => hideAnnouncement(ann.id)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-muted-foreground hover:text-destructive bg-muted/40 hover:bg-destructive/5 border border-muted/50 hover:border-destructive/15 transition-all opacity-70 group-hover:opacity-100"
+                          title="목록에서 숨기기"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                          </svg>
+                          <span>숨기기</span>
+                        </button>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 text-center">
                       <StatusBadge status={currentStatus} label={currentDisplayStatus} />
                     </td>
                   </tr>
@@ -477,7 +555,7 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
               })}
               {filteredProjects.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-6 py-24 text-center">
+                  <td colSpan={10} className="px-6 py-24 text-center">
                     <div className="mb-4 flex justify-center">
                       <div className="rounded-full bg-accent p-6">
                         <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -516,7 +594,31 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
                     </span>
                     <StatusBadge status={currentStatus} label={currentDisplayStatus} />
                   </div>
-                  <BookmarkCheckbox id={ann.id} initialChecked={ann.isBookmarked || false} />
+                  <div className="flex items-center gap-3">
+                    {showHiddenOnly ? (
+                      <button
+                        onClick={() => restoreAnnouncement(ann.id)}
+                        className="text-blue-500 hover:text-blue-700 p-1 bg-blue-500/5 hover:bg-blue-500/10 rounded border border-blue-500/15"
+                        title="숨김 해제"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => hideAnnouncement(ann.id)}
+                        className="text-muted-foreground hover:text-destructive p-1 bg-muted/30 hover:bg-destructive/5 rounded border border-muted/50 hover:border-destructive/15"
+                        title="숨기기"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      </button>
+                    )}
+                    <BookmarkCheckbox id={ann.id} initialChecked={ann.isBookmarked || false} />
+                  </div>
                 </div>
 
                 {/* Title & Builder */}
