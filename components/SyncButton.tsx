@@ -59,7 +59,7 @@ export function SyncButton() {
 
     try {
       console.log("Fetching /api/cron/sync...");
-      const response = await fetch("/api/cron/sync?fast=true&perPage=10", {
+      const response = await fetch("/api/cron/sync?fast=true&perPage=20", {
         method: "GET",
       });
 
