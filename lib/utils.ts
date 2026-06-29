@@ -119,3 +119,50 @@ export function isHousingRecruitment(title: string, providerName?: string): bool
   // ponytail: disabled due to too many false positives and missing upcoming lists. Keep all.
   return true;
 }
+
+export function getAnnouncementCategory(title: string): { key: string; label: string; className: string } {
+  const t = title.trim();
+
+  // 1. 결과/당첨자 발표 (Results / Winners)
+  if (/발표|결과|배정|대상자|합격|당첨|선정/i.test(t)) {
+    return {
+      key: "RESULT",
+      label: "결과/발표",
+      className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200/50"
+    };
+  }
+
+  // 2. 계약/입주/점검 안내 (Contract / Move-in / Inspection)
+  if (/계약|입주\s*안내|입주\s*기간|사전\s*점검|사전\s*방문|주택\s*공개|주택\s*개방|사전\s*안내|열람|열쇠/i.test(t)) {
+    return {
+      key: "GUIDE",
+      label: "계약/입주안내",
+      className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200/50"
+    };
+  }
+
+  // 3. 변경/정정/연기 (Amendment / Correction / Postponement)
+  if (/변경|정정|연기|취소|수정/i.test(t)) {
+    return {
+      key: "AMEND",
+      label: "변경/정정",
+      className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200/50"
+    };
+  }
+
+  // 4. 모집공고 (Recruitment)
+  if (/모집\s*공고|모집|청약|분양/i.test(t)) {
+    return {
+      key: "RECRUIT",
+      label: "모집공고",
+      className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200/50"
+    };
+  }
+
+  // 5. 일반공지/기타 (General / Other)
+  return {
+    key: "NOTICE",
+    label: "일반공지/기타",
+    className: "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400 border border-gray-200/50"
+  };
+}

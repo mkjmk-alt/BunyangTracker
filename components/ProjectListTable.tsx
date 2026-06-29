@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getDynamicStatus, getSourceBadge } from "@/lib/utils";
+import { getDynamicStatus, getSourceBadge, getAnnouncementCategory } from "@/lib/utils";
 import { BookmarkCheckbox } from "./BookmarkCheckbox";
 import { StatusBadge } from "./StatusBadge";
 
@@ -64,6 +64,7 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
   const [selectedRegions, setSelectedRegions] = useState<Set<string>>(new Set());
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
 
   // Hidden/Restore States
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
@@ -73,6 +74,7 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
   const [regionFilterOpen, setRegionFilterOpen] = useState(false);
   const [typeFilterOpen, setTypeFilterOpen] = useState(false);
   const [statusFilterOpen, setStatusFilterOpen] = useState(false);
+  const [categoryFilterOpen, setCategoryFilterOpen] = useState(false);
 
   // Helper to resolve region label
   const getRegionLabel = (ann: SerializedProjectAnnouncement) => {
@@ -124,11 +126,13 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
       initialProjects.map(p => getDynamicStatus(p.applyStartDate, p.applyEndDate, kstToday).displayStatus)
     )
   ).sort();
+  const allCategories = ["모집공고", "결과/발표", "계약/입주안내", "변경/정정", "일반공지/기타"];
 
   // Reset to full selection when initialProjects changes
   useEffect(() => {
     setSelectedRegions(new Set(allRegions));
     setSelectedTypes(new Set(allTypes));
+    setSelectedCategories(new Set(allCategories));
     
     // 기본 필터로 "공고예정", "접수중" 두 가지만 선택 상태로 초기 설정
     const defaultStatuses = ["공고예정", "접수중"];
@@ -228,6 +232,24 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
     }
   };
 
+  const toggleCategory = (cat: string) => {
+    const next = new Set(selectedCategories);
+    if (next.has(cat)) {
+      next.delete(cat);
+    } else {
+      next.add(cat);
+    }
+    setSelectedCategories(next);
+  };
+
+  const toggleAllCategories = () => {
+    if (selectedCategories.size === allCategories.length) {
+      setSelectedCategories(new Set());
+    } else {
+      setSelectedCategories(new Set(allCategories));
+    }
+  };
+
   // Filtered List
   const filteredProjects = initialProjects.filter(p => {
     const isHidden = hiddenIds.has(p.id);
@@ -237,8 +259,9 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
     const r = getRegionLabel(p);
     const t = p.supplyType;
     const s = getDynamicStatus(p.applyStartDate, p.applyEndDate, kstToday).displayStatus;
+    const c = getAnnouncementCategory(p.project?.name || "").label;
 
-    return selectedRegions.has(r) && selectedTypes.has(t) && selectedStatuses.has(s);
+    return selectedRegions.has(r) && selectedTypes.has(t) && selectedStatuses.has(s) && selectedCategories.has(c);
   });
 
   return (
@@ -251,6 +274,8 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
           <span>•</span>
           <span className="font-semibold text-foreground">구분 {selectedTypes.size}/{allTypes.length}</span>
           <span>•</span>
+          <span className="font-semibold text-foreground">분류 {selectedCategories.size}/{allCategories.length}</span>
+          <span>•</span>
           <span className="font-semibold text-foreground">상태 {selectedStatuses.size}/{allStatuses.length}</span>
           <span>•</span>
           <span>검색결과 <strong className="text-primary font-bold">{filteredProjects.length}</strong>개</span>
@@ -261,6 +286,7 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
               setSelectedRegions(new Set(allRegions));
               setSelectedTypes(new Set(allTypes));
               setSelectedStatuses(new Set(allStatuses));
+              setSelectedCategories(new Set(allCategories));
             }}
             className="text-primary hover:underline font-semibold"
           >
@@ -296,6 +322,7 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
                         setRegionFilterOpen(!regionFilterOpen);
                         setTypeFilterOpen(false);
                         setStatusFilterOpen(false);
+                        setCategoryFilterOpen(false);
                       }} 
                       className={`p-1 rounded hover:bg-muted transition-colors ${
                         selectedRegions.size < allRegions.length ? "text-primary bg-primary/10" : "text-muted-foreground"
@@ -350,6 +377,7 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
                         setTypeFilterOpen(!typeFilterOpen);
                         setRegionFilterOpen(false);
                         setStatusFilterOpen(false);
+                        setCategoryFilterOpen(false);
                       }} 
                       className={`p-1 rounded hover:bg-muted transition-colors ${
                         selectedTypes.size < allTypes.length ? "text-primary bg-primary/10" : "text-muted-foreground"
@@ -395,6 +423,61 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
                   )}
                 </th>
 
+                {/* Category Filter Header */}
+                <th className="px-2 py-3 relative w-[130px]">
+                  <div className="flex items-center gap-1">
+                    <span>분류</span>
+                    <button 
+                      onClick={() => {
+                        setCategoryFilterOpen(!categoryFilterOpen);
+                        setRegionFilterOpen(false);
+                        setTypeFilterOpen(false);
+                        setStatusFilterOpen(false);
+                      }} 
+                      className={`p-1 rounded hover:bg-muted transition-colors ${
+                        selectedCategories.size < allCategories.length ? "text-primary bg-primary/10" : "text-muted-foreground"
+                      }`}
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
+                      </svg>
+                    </button>
+                  </div>
+                  {categoryFilterOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setCategoryFilterOpen(false)} />
+                      <div className="absolute left-4 top-11 z-50 min-w-[180px] rounded-lg border bg-popover text-popover-foreground p-3 shadow-xl flex flex-col gap-2 subtle-shadow">
+                        <div className="font-bold text-xs border-b pb-1 text-foreground flex justify-between">
+                          <span>공고분류 다중 필터</span>
+                          <button onClick={() => setCategoryFilterOpen(false)} className="text-[10px] text-muted-foreground hover:underline">닫기</button>
+                        </div>
+                        <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer py-1 hover:bg-muted/50 rounded px-1 text-foreground">
+                          <input 
+                            type="checkbox" 
+                            checked={selectedCategories.size === allCategories.length} 
+                            onChange={toggleAllCategories} 
+                            className="rounded accent-primary" 
+                          />
+                          <span>모두 선택</span>
+                        </label>
+                        <div className="flex flex-col gap-1 max-h-[200px] overflow-y-auto">
+                          {allCategories.map(cat => (
+                            <label key={cat} className="flex items-center gap-2 text-xs cursor-pointer py-0.5 hover:bg-muted/50 rounded px-1 text-muted-foreground hover:text-foreground">
+                              <input 
+                                type="checkbox" 
+                                checked={selectedCategories.has(cat)} 
+                                onChange={() => toggleCategory(cat)} 
+                                className="rounded accent-primary" 
+                              />
+                              <span className="truncate">{cat}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </th>
+
                 <th className="px-2 py-3">주택명</th>
                 <th className="px-2 py-3">시행사/건설사</th>
                 <th className="px-2 py-3">모집공고일</th>
@@ -411,6 +494,7 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
                         setStatusFilterOpen(!statusFilterOpen);
                         setRegionFilterOpen(false);
                         setTypeFilterOpen(false);
+                        setCategoryFilterOpen(false);
                       }} 
                       className={`p-1 rounded hover:bg-muted transition-colors ${
                         selectedStatuses.size < allStatuses.length ? "text-primary bg-primary/10" : "text-muted-foreground"
@@ -490,6 +574,16 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
                       </div>
                     </td>
                     <td className="px-2 py-3">
+                      {(() => {
+                        const cat = getAnnouncementCategory(ann.project?.name || "");
+                        return (
+                          <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${cat.className}`}>
+                            {cat.label}
+                          </span>
+                        );
+                      })()}
+                    </td>
+                    <td className="px-2 py-3">
                       <Link 
                         href={`/projects/${ann.project?.slug}`}
                         className="font-bold text-blue-600 hover:underline group-hover:text-blue-700 block whitespace-normal min-w-[220px] max-w-[400px] break-words text-sm"
@@ -555,7 +649,7 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
               })}
               {filteredProjects.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-6 py-24 text-center">
+                  <td colSpan={11} className="px-6 py-24 text-center">
                     <div className="mb-4 flex justify-center">
                       <div className="rounded-full bg-accent p-6">
                         <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
