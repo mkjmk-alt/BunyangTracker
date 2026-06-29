@@ -115,7 +115,16 @@ export function getSourceBadge(key: string | null | undefined) {
   return null;
 }
 
-export function isHousingRecruitment(title: string): boolean {
+export function isHousingRecruitment(title: string, providerName?: string): boolean {
+  // ponytail: Official sales APIs (ApplyHome, LH API) contain raw apartment names (e.g. "로제비앙 엘가") 
+  // without the words "모집" or "공고", and are 100% verified housing projects. Bypass filtering for these.
+  if (providerName) {
+    const lowerName = providerName.toLowerCase();
+    if (lowerName.includes("applyhome") || lowerName === "lh_api") {
+      return true;
+    }
+  }
+
   const cleanTitle = title.trim();
 
   // 1. Exclude keywords (noise, non-residential, administrative notices)

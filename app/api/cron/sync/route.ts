@@ -94,7 +94,7 @@ export async function GET(request: Request) {
           const normalized = provider.normalize(item);
           
           // ponytail: Skip non-housing recruitment messages (commercial bids, lists of results, announcements, etc.)
-          if (!isHousingRecruitment(normalized.name)) {
+          if (!isHousingRecruitment(normalized.name, provider.providerId)) {
             continue;
           }
 
