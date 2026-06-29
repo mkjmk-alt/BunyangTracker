@@ -155,8 +155,9 @@ export function SyncHistoryTable({ initialRuns }: Props) {
       </div>
 
       {/* Desktop View: Table */}
-      <div className="hidden md:block rounded-xl border bg-card overflow-visible subtle-shadow">
-        <table className="w-full text-left text-sm whitespace-nowrap table-auto">
+      <div className="hidden md:block w-full overflow-x-auto pb-4">
+        <div className="rounded-xl border bg-card overflow-visible subtle-shadow">
+          <table className="w-full text-left text-sm whitespace-nowrap table-auto">
           <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] font-bold">
             <tr>
               {/* Provider Filter Column Header */}
@@ -318,6 +319,7 @@ export function SyncHistoryTable({ initialRuns }: Props) {
             )}
           </tbody>
         </table>
+      </div>
       </div>
 
       {/* Mobile View: Card List */}

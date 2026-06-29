@@ -279,7 +279,7 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
         </div>
       </div>
 
-      <div className="w-full pb-4 max-w-full overflow-hidden">
+      <div className="w-full pb-4 max-w-full overflow-x-auto">
         {/* Desktop View: Table */}
         <div className="hidden md:block rounded-xl border bg-card subtle-shadow overflow-visible">
           <table className="w-full text-left text-sm whitespace-nowrap table-auto">
