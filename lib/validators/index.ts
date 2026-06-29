@@ -126,6 +126,8 @@ export const SHAnnouncementSchema = z.object({
   boardId: z.string(),
   menuId: z.string(),
   domain: z.string(),
+  applyStartDate: z.string().optional().nullable(),
+  applyEndDate: z.string().optional().nullable(),
 });
 
 export type SHAnnouncement = z.infer<typeof SHAnnouncementSchema>;

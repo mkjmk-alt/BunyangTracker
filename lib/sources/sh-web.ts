@@ -5,6 +5,69 @@ export class SHWebProvider implements SourceProvider<SHAnnouncement> {
   providerId = "sh_web";
   private baseUrl = "https://www.i-sh.co.kr";
 
+  private async fetchDetailDates(domain: string, boardId: string, menuId: string, seq: string): Promise<{ start: string | null; end: string | null }> {
+    try {
+      const url = `${this.baseUrl}/${domain}/lay2/program/${boardId}/www/brd/${menuId}/view.do?seq=${seq}`;
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+      });
+      if (!res.ok) return { start: null, end: null };
+      const html = await res.text();
+      
+      const contMatch = html.match(/<td[^>]*class="cont"[^>]*>([\s\S]*?)<\/td>/i);
+      if (!contMatch) return { start: null, end: null };
+      
+      const text = contMatch[1]
+        .replace(/<[^>]*>/g, " ")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const keywords = ["인터넷 청약신청", "청약신청", "접수기간", "신청기간", "청약접수", "접수일정"];
+      for (const keyword of keywords) {
+        const idx = text.indexOf(keyword);
+        if (idx !== -1) {
+          const windowText = text.substring(idx, idx + 300);
+          const dateRangeRegex = /(\d{4})\s*[\s.-]\s*(\d{1,2})\s*[\s.-]\s*(\d{1,2})[^~]*~\s*(?:(\d{4})\s*[\s.-]\s*)?(\d{1,2})\s*[\s.-]\s*(\d{1,2})/i;
+          const match = windowText.match(dateRangeRegex);
+          if (match) {
+            const startYear = match[1];
+            const startMonth = match[2].padStart(2, "0");
+            const startDay = match[3].padStart(2, "0");
+            const endYear = match[4] || startYear;
+            const endMonth = match[5].padStart(2, "0");
+            const endDay = match[6].padStart(2, "0");
+            return {
+              start: `${startYear}-${startMonth}-${startDay}`,
+              end: `${endYear}-${endMonth}-${endDay}`,
+            };
+          }
+        }
+      }
+
+      // Fallback
+      const fallbackRegex = /(\d{4})\s*[\s.-]\s*(\d{1,2})\s*[\s.-]\s*(\d{1,2})[^~]{0,50}~\s*(?:(\d{4})\s*[\s.-]\s*)?(\d{1,2})\s*[\s.-]\s*(\d{1,2})/i;
+      const match = text.match(fallbackRegex);
+      if (match) {
+        const startYear = match[1];
+        const startMonth = match[2].padStart(2, "0");
+        const startDay = match[3].padStart(2, "0");
+        const endYear = match[4] || startYear;
+        const endMonth = match[5].padStart(2, "0");
+        const endDay = match[6].padStart(2, "0");
+        return {
+          start: `${startYear}-${startMonth}-${startDay}`,
+          end: `${endYear}-${endMonth}-${endDay}`,
+        };
+      }
+    } catch (e) {
+      console.error(`[SHWeb] Failed to parse detail dates for seq=${seq}`, e);
+    }
+    return { start: null, end: null };
+  }
+
   async fetchIndex(options: FetchOptions): Promise<SHAnnouncement[]> {
     console.log("[SHWeb] Starting web scraping for SH announcements...");
 
@@ -95,6 +158,15 @@ export class SHWebProvider implements SourceProvider<SHAnnouncement> {
           }
         }
 
+        console.log(`[SHWeb] Fetching detailed dates for ${items.length} items in ${label}...`);
+        await Promise.all(
+          items.map(async (item) => {
+            const dates = await this.fetchDetailDates(item.domain, item.boardId, item.menuId, item.seq);
+            item.applyStartDate = dates.start;
+            item.applyEndDate = dates.end;
+          })
+        );
+
         console.log(`[SHWeb] Finished ${label}: Found ${items.length} items.`);
         return items;
       } catch (err: any) {
@@ -143,8 +215,8 @@ export class SHWebProvider implements SourceProvider<SHAnnouncement> {
       status: "OPEN",
       displayStatus: "접수중",
       announceDate: raw.date || null,
-      applyStartDate: raw.date || null,
-      applyEndDate: null,
+      applyStartDate: raw.applyStartDate || raw.date || null,
+      applyEndDate: raw.applyEndDate || null,
       winnerAnnounceDate: null,
       contractStartDate: null,
       contractEndDate: null,
