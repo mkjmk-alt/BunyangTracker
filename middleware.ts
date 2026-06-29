@@ -21,13 +21,13 @@ export function middleware(req: NextRequest) {
   // 3. Inspect the standard HTTP Authorization header
   const authorizationHeader = req.headers.get("authorization");
 
-  // 4. Special handling for Vercel Cron Sync API
-  if (pathname.startsWith("/api/cron/sync")) {
+  // 4. Special handling for Vercel Cron Sync API and local admin endpoints
+  if (pathname.startsWith("/api/cron/sync") || pathname.startsWith("/api/admin/sync-browser-bookmarks")) {
     // Allow Vercel Cron with Bearer token
     if (cronSecret && authorizationHeader === `Bearer ${cronSecret}`) {
       return NextResponse.next();
     }
-    // Allow local development sync without CRON_SECRET
+    // Allow local development sync and admin actions without basic auth
     if (process.env.NODE_ENV === "development") {
       return NextResponse.next();
     }

@@ -42,8 +42,11 @@ export function SyncHistoryTable({ initialRuns }: Props) {
       applyhome_api: "청약홈 API (공식)",
       applyhome_web: "청약홈 웹 (실시간)",
       lh_api: "LH 청약플러스",
+      lh_web: "LH 청약플러스 (웹)",
       sh_web: "SH 서울주택공사",
       gh_web: "GH 경기주택공사",
+      ih_web: "iH 인천도시공사",
+      bmc_web: "BMC 부산도시공사",
       myhome_api: "마이홈포털",
     };
     return map[name] || name;
@@ -54,11 +57,16 @@ export function SyncHistoryTable({ initialRuns }: Props) {
       applyhome_api: "bg-sky-100 text-sky-700 dark:bg-sky-950/30 dark:text-sky-400 border-sky-200/50",
       applyhome_web: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border-emerald-200/50",
       lh_api: "bg-purple-100 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400 border-purple-200/50",
+      lh_web: "bg-teal-100 text-teal-700 dark:bg-teal-950/30 dark:text-teal-400 border-teal-200/50",
       sh_web: "bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border-amber-200/50",
       gh_web: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border-indigo-200/50",
+      ih_web: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/30 dark:text-cyan-400 border-cyan-200/50",
+      bmc_web: "bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 border-blue-200/50",
       myhome_api: "bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400 border-rose-200/50",
     };
-    return `inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border ${map[name] || "bg-gray-100 text-gray-700"}`;
+    return `inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold border ${
+      map[name] || "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700"
+    }`;
   };
 
   const formatDateTimeStr = (str: string | null) => {

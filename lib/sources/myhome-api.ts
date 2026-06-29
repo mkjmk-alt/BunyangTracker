@@ -1,6 +1,45 @@
 import { SourceProvider, FetchOptions, RateLimitPolicy } from "./provider";
 import { MyHomeAnnouncement, MyHomeAnnouncementSchema, NormalizedAnnouncement } from "../validators";
 
+const extractCanonicalId = (url: string | null | undefined, instt: string | null | undefined, defaultId: string): string => {
+  if (!url) return defaultId;
+
+  const insttLower = (instt || "").toLowerCase();
+  const urlLower = url.toLowerCase();
+
+  // LH (한국토지주택공사)
+  if (insttLower.includes("lh") || insttLower.includes("토지주택") || urlLower.includes("lh.or.kr")) {
+    const match = url.match(/[?&]panId=([^&]+)/);
+    if (match) return match[1];
+  }
+
+  // SH (서울주택도시공사)
+  if (insttLower.includes("sh") || insttLower.includes("서울주택") || urlLower.includes("i-sh.co.kr")) {
+    const match = url.match(/[?&]seq=([^&]+)/);
+    if (match) return `sh-${match[1]}`;
+  }
+
+  // GH (경기주택도시공사)
+  if (insttLower.includes("gh") || insttLower.includes("경기주택") || urlLower.includes("gh.or.kr")) {
+    const match = url.match(/[?&]pbancNo=([^&]+)/) || url.match(/[?&]bizCd=([^&]+)/);
+    if (match) return `gh-${match[1]}`;
+  }
+
+  // iH (인천도시공사)
+  if (insttLower.includes("ih") || insttLower.includes("인천도시") || urlLower.includes("ih.co.kr")) {
+    const match = url.match(/[?&]seq=([^&]+)/) || url.match(/[?&]msg_seq=([^&]+)/) || url.match(/[?&]dataSid=([^&]+)/);
+    if (match) return `ih-${match[1]}`;
+  }
+
+  // BMC (부산도시공사)
+  if (insttLower.includes("bmc") || insttLower.includes("부산도시") || urlLower.includes("bmc.busan.kr")) {
+    const match = url.match(/[?&]dataSid=([^&]+)/);
+    if (match) return `bmc-${match[1]}`;
+  }
+
+  return defaultId;
+};
+
 export class MyHomeApiProvider implements SourceProvider<MyHomeAnnouncement> {
   providerId = "myhome_api";
   private baseUri = "http://apis.data.go.kr/1613000/HWSPR02/rsdtRcritNtcList";
@@ -86,7 +125,13 @@ export class MyHomeApiProvider implements SourceProvider<MyHomeAnnouncement> {
     };
 
     const pblancId = raw.pblancId;
-    const slug = `myhome-${raw.pblancNm}-${pblancId}`
+    const announceUrl = raw.pcUrl || raw.url || null;
+    const insttName = cleanInstt(raw.suplyInsttNm);
+    
+    // Extract canonical ID prioritizing the direct link (url) over the portal detail link (pcUrl)
+    const canonicalId = extractCanonicalId(raw.url || raw.pcUrl || null, insttName, pblancId);
+
+    const slug = `myhome-${raw.pblancNm}-${canonicalId}`
       .replace(/\s+/g, "-")
       .replace(/[^\p{L}\p{N}-]/gu, "")
       .replace(/-+/g, "-")
@@ -95,11 +140,10 @@ export class MyHomeApiProvider implements SourceProvider<MyHomeAnnouncement> {
     const announceDate = cleanDate(raw.rcritPblancDe);
     const applyStartDate = cleanDate(raw.beginDe);
     const applyEndDate = cleanDate(raw.endDe);
-    const insttName = cleanInstt(raw.suplyInsttNm);
 
     return {
-      housingMgmtNo: pblancId,
-      announceNo: pblancId,
+      housingMgmtNo: canonicalId,
+      announceNo: canonicalId,
       name: raw.pblancNm,
       slug,
       supplyType: raw.suplyTyNm || "공공임대",
@@ -116,8 +160,8 @@ export class MyHomeApiProvider implements SourceProvider<MyHomeAnnouncement> {
       developerName: insttName,
       totalHouseholds: null,
       regionCode: null,
-      externalSourceKey: `${this.providerId}:${pblancId}`,
-      pblancUrl: raw.pcUrl || raw.url || null,
+      externalSourceKey: `${this.providerId}:${canonicalId}`,
+      pblancUrl: announceUrl,
       homepageAdres: null,
       displayStatus: raw.sttusNm || null,
     };
@@ -131,7 +175,8 @@ export class MyHomeApiProvider implements SourceProvider<MyHomeAnnouncement> {
   }
 
   getStableExternalId(raw: MyHomeAnnouncement): string {
-    return `${this.providerId}:${raw.pblancId}`;
+    const canonicalId = extractCanonicalId(raw.url || raw.pcUrl || null, raw.suplyInsttNm, raw.pblancId);
+    return `${this.providerId}:${canonicalId}`;
   }
 
   supportsBackfill(): boolean {

@@ -483,9 +483,15 @@ export async function GET(request: Request) {
               displayStatus: sql`excluded.display_status`,
               applyStartDate: sql`excluded.apply_start_date`,
               applyEndDate: sql`excluded.apply_end_date`,
-              pblancUrl: sql`excluded.pblanc_url`,
+              pblancUrl: sql`CASE
+                WHEN excluded.external_source_key LIKE 'myhome_api:%' AND announcements.pblanc_url IS NOT NULL THEN announcements.pblanc_url
+                ELSE excluded.pblanc_url
+              END`,
               homepageAdres: sql`excluded.homepage_adres`,
-              externalSourceKey: sql`excluded.external_source_key`,
+              externalSourceKey: sql`CASE
+                WHEN excluded.external_source_key LIKE 'myhome_api:%' AND announcements.external_source_key NOT LIKE 'myhome_api:%' THEN announcements.external_source_key
+                ELSE excluded.external_source_key
+              END`,
               fingerprint: sql`excluded.fingerprint`,
               latestSnapshotId: sql`excluded.latest_snapshot_id`,
               // Preserve existing attachment metadata
@@ -510,8 +516,15 @@ export async function GET(request: Request) {
                   displayStatus: ann.displayStatus,
                   applyStartDate: ann.applyStartDate,
                   applyEndDate: ann.applyEndDate,
-                  pblancUrl: ann.pblancUrl,
+                  pblancUrl: sql`CASE
+                    WHEN ${ann.externalSourceKey} LIKE 'myhome_api:%' AND announcements.pblanc_url IS NOT NULL THEN announcements.pblanc_url
+                    ELSE ${ann.pblancUrl}
+                  END`,
                   homepageAdres: ann.homepageAdres,
+                  externalSourceKey: sql`CASE
+                    WHEN ${ann.externalSourceKey} LIKE 'myhome_api:%' AND announcements.external_source_key NOT LIKE 'myhome_api:%' THEN announcements.external_source_key
+                    ELSE ${ann.externalSourceKey}
+                  END`,
                   fingerprint: ann.fingerprint,
                   latestSnapshotId: ann.latestSnapshotId,
                   updatedAt: new Date(),

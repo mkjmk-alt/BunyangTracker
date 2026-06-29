@@ -44,9 +44,18 @@ export class LHWebProvider implements SourceProvider<LHWebAnnouncement> {
           if (!linkMatch) continue;
 
           const titleMatch = inner.match(/<span>([\s\S]*?)<\/span>/);
-          const title = titleMatch
-            ? titleMatch[1].replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim()
-            : "";
+          let title = "";
+          if (titleMatch) {
+            const rawTitleHtml = titleMatch[1];
+            // Remove nested em and span elements (and their inner contents) to exclude dynamic badges like "1일전", "new", "마감"
+            const cleanTitleHtml = rawTitleHtml
+              .replace(/<em\b[^>]*>[\s\S]*?<\/em>/gi, "")
+              .replace(/<span\b[^>]*>[\s\S]*?<\/span>/gi, "");
+            title = cleanTitleHtml
+              .replace(/<[^>]*>/g, "")
+              .replace(/\s+/g, " ")
+              .trim();
+          }
           if (!title) continue;
 
           // Extract <td> columns: [번호, 유형, 제목, 지역, 첨부, 공고일, 마감일, 상태, 조회수]
