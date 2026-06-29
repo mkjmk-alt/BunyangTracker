@@ -5,10 +5,10 @@ import fs from "fs";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
+export async function POST(): Promise<Response> {
   console.log("[SyncBrowserBookmarks] Initiating browser bookmarks sync via python script...");
 
-  return new Promise((resolve) => {
+  return new Promise<Response>((resolve) => {
     const scriptPath = path.join(process.cwd(), "scripts", "restore-bookmarks.py");
     
     if (!fs.existsSync(scriptPath)) {
