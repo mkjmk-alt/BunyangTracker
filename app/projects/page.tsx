@@ -112,7 +112,7 @@ export default async function ProjectsPage({
   }));
 
   return (
-    <main className="container mx-auto py-8 px-4 md:px-6">
+    <main className="w-full max-w-[1450px] mx-auto py-8 px-2 md:px-4">
       <div className="flex flex-col gap-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>

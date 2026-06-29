@@ -285,11 +285,11 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
           <table className="w-full text-left text-sm whitespace-nowrap table-auto">
             <thead className="bg-muted/50 text-muted-foreground uppercase text-[10px] font-bold sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-4 w-10 text-center"></th>
+                <th className="px-2 py-3 w-8 text-center"></th>
                 
                 {/* Region Filter Header */}
-                <th className="px-4 py-4 relative w-[180px]">
-                  <div className="flex items-center gap-1.5">
+                <th className="px-2 py-3 relative w-[100px]">
+                  <div className="flex items-center gap-1">
                     <span>지역</span>
                     <button 
                       onClick={() => {
@@ -342,8 +342,8 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
                 </th>
 
                 {/* Supply Type Filter Header */}
-                <th className="px-4 py-4 relative w-[220px]">
-                  <div className="flex items-center gap-1.5">
+                <th className="px-2 py-3 relative w-[130px]">
+                  <div className="flex items-center gap-1">
                     <span>구분</span>
                     <button 
                       onClick={() => {
@@ -395,16 +395,16 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
                   )}
                 </th>
 
-                <th className="px-4 py-4">주택명</th>
-                <th className="px-4 py-4">시행사/건설사</th>
-                <th className="px-4 py-4">모집공고일</th>
-                <th className="px-4 py-4">청약기간</th>
-                <th className="px-4 py-4">당첨자발표</th>
-                <th className="px-4 py-4 text-center w-[100px]">관리</th>
+                <th className="px-2 py-3">주택명</th>
+                <th className="px-2 py-3">시행사/건설사</th>
+                <th className="px-2 py-3">모집공고일</th>
+                <th className="px-2 py-3">청약기간</th>
+                <th className="px-2 py-3">당첨자발표</th>
+                <th className="px-2 py-3 text-center w-[80px]">관리</th>
 
                 {/* Status Filter Header */}
-                <th className="px-4 py-4 text-center relative w-[130px]">
-                  <div className="flex items-center justify-center gap-1.5">
+                <th className="px-2 py-3 text-center relative w-[95px]">
+                  <div className="flex items-center justify-center gap-1">
                     <span>상태</span>
                     <button 
                       onClick={() => {
@@ -468,15 +468,15 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
 
                 return (
                   <tr key={ann.id} className="hover:bg-accent/5 transition-colors group">
-                    <td className="px-4 py-4 text-center">
+                    <td className="px-2 py-3 text-center">
                       <BookmarkCheckbox id={ann.id} initialChecked={ann.isBookmarked || false} />
                     </td>
-                    <td className="px-4 py-4 text-muted-foreground font-medium">
+                    <td className="px-2 py-3 text-muted-foreground font-medium text-xs">
                       {reg}
                     </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium px-2 py-0.5 bg-primary/5 text-primary rounded-full">
+                    <td className="px-2 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-medium px-1.5 py-0.5 bg-primary/5 text-primary rounded-full max-w-[90px] truncate" title={ann.supplyType}>
                           {ann.supplyType}
                         </span>
                         {(() => {
@@ -489,13 +489,13 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
                         })()}
                       </div>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-2 py-3">
                       <Link 
                         href={`/projects/${ann.project?.slug}`}
-                        className="font-bold text-blue-600 hover:underline group-hover:text-blue-700 block whitespace-normal min-w-[250px] max-w-[450px] break-words"
+                        className="font-bold text-blue-600 hover:underline group-hover:text-blue-700 block whitespace-normal min-w-[220px] max-w-[400px] break-words text-sm"
                         title={ann.project?.name}
                       >
-                        <div className="flex items-start gap-2">
+                        <div className="flex items-start gap-1.5">
                           <span>{ann.project?.name}</span>
                           {ann.createdAt && new Date(ann.createdAt).getTime() >= lastSyncStartedAt && (
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-blue-500 text-white animate-pulse shadow-sm leading-none shrink-0 mt-0.5">
@@ -505,23 +505,23 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
                         </div>
                       </Link>
                     </td>
-                    <td className="px-4 py-4 text-muted-foreground">
-                      <div className="max-w-[120px] truncate" title={ann.project?.developerName || ann.project?.builderName || undefined}>
+                    <td className="px-2 py-3 text-muted-foreground text-xs">
+                      <div className="max-w-[90px] truncate" title={ann.project?.developerName || ann.project?.builderName || undefined}>
                         {ann.project?.developerName || ann.project?.builderName || "-"}
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-xs font-medium">{ann.announceDate || "-"}</td>
-                    <td className="px-4 py-4 font-medium text-xs">
+                    <td className="px-2 py-3 text-xs font-medium">{ann.announceDate || "-"}</td>
+                    <td className="px-2 py-3 font-medium text-xs">
                       {ann.applyStartDate && ann.applyEndDate ? (
-                        <span className="text-muted-foreground">
+                        <span className="text-muted-foreground whitespace-nowrap">
                           <span className="text-foreground">{ann.applyStartDate}</span>
-                          <span className="mx-1">~</span>
+                          <span className="mx-0.5">~</span>
                           <span className="text-foreground">{ann.applyEndDate}</span>
                         </span>
                       ) : "-"}
                     </td>
-                    <td className="px-4 py-4 text-xs">{ann.winnerAnnounceDate || "-"}</td>
-                    <td className="px-4 py-4 text-center">
+                    <td className="px-2 py-3 text-xs">{ann.winnerAnnounceDate || "-"}</td>
+                    <td className="px-2 py-3 text-center">
                       {showHiddenOnly ? (
                         <button
                           onClick={() => restoreAnnouncement(ann.id)}
@@ -547,7 +547,7 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
                         </button>
                       )}
                     </td>
-                    <td className="px-4 py-4 text-center">
+                    <td className="px-2 py-3 text-center">
                       <StatusBadge status={currentStatus} label={currentDisplayStatus} />
                     </td>
                   </tr>
