@@ -92,11 +92,7 @@ export async function GET(request: Request) {
       for (const item of items) {
         try {
           const normalized = provider.normalize(item);
-          
-          // ponytail: Skip non-housing recruitment messages (commercial bids, lists of results, announcements, etc.)
-          if (!isHousingRecruitment(normalized.name, provider.providerId)) {
-            continue;
-          }
+
 
           const fingerprint = generateFingerprint(normalized);
           allNormalized.push({ 

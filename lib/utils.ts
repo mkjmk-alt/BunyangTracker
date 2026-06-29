@@ -116,24 +116,6 @@ export function getSourceBadge(key: string | null | undefined) {
 }
 
 export function isHousingRecruitment(title: string, providerName?: string): boolean {
-  // ponytail: Official sales APIs (ApplyHome, LH API) contain raw apartment names (e.g. "로제비앙 엘가") 
-  // without the words "모집" or "공고", and are 100% verified housing projects. Bypass filtering for these.
-  if (providerName) {
-    const lowerName = providerName.toLowerCase();
-    if (lowerName.includes("applyhome") || lowerName === "lh_api") {
-      return true;
-    }
-  }
-
-  const cleanTitle = title.trim();
-
-  // 1. Exclude keywords (noise, non-residential, administrative notices)
-  const excludePattern = /결과\s*발표|선정\s*결과|심사\s*결과|당첨자|계약\s*결과|안내문|서류\s*제출|회의록|경진대회|확인증|평가위원|수행기관|안전점검|입찰|보조사업자|상가|토지|보상|공지사항/i;
-  if (excludePattern.test(cleanTitle)) {
-    return false;
-  }
-
-  // 2. Allowed positive matches (recruitment keywords)
-  const includePattern = /모집|공고|입주자|입주대기자|재공급|선정/i;
-  return includePattern.test(cleanTitle);
+  // ponytail: disabled due to too many false positives and missing upcoming lists. Keep all.
+  return true;
 }
