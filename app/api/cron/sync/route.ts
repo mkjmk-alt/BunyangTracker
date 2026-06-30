@@ -25,62 +25,63 @@ export async function GET(request: Request) {
   const fast = searchParams.get("fast") === "true";
 
   try {
-    // ─── 1. Register providers (parallel) ─────────────────────────
+    // ─── 1. Register providers (sequential) ───────────────────────
     const providerConfigs = [
+      // 1. API Providers (API를 가장 먼저 취합)
       { instance: new ApplyHomeApiProvider(), label: "청약홈 (민영/공공분양)" },
-      { instance: new ApplyHomeWebProvider(), label: "청약홈 실시간 웹 (민영/공공분양/기타)" },
       { instance: new LHApiProvider(), label: "LH 청약플러스 (공공주택/행복주택)" },
+      { instance: new MyHomeApiProvider(), label: "마이홈포털 (전국 임대/분양 통합)" },
+      
+      // 2. Web Scrapers (그 다음 순차 취합)
+      { instance: new ApplyHomeWebProvider(), label: "청약홈 실시간 웹 (민영/공공분양/기타)" },
       { instance: new LHWebProvider(), label: "LH 청약플러스 실시간 웹 (임대/분양)" },
       { instance: new SHWebProvider(), label: "SH 서울주택도시공사 실시간 웹 (분양/임대)" },
       { instance: new GHWebProvider(), label: "GH 경기주택도시공사 실시간 웹 (청약공고)" },
-      { instance: new MyHomeApiProvider(), label: "마이홈포털 (전국 임대/분양 통합)" },
       { instance: new IHWebProvider(), label: "iH 인천도시공사 실시간 웹 (분양/임대)" },
       { instance: new BMCWebProvider(), label: "BMC 부산도시공사 실시간 웹 (분양/임대)" },
     ];
 
     const providerIds: Record<string, string> = {};
     const providerSyncRunIds: Record<string, string> = {};
-    await Promise.all(
-      providerConfigs.map(async ({ instance, label }) => {
-        const existing = await db.query.sourceProviders.findFirst({
-          where: eq(sourceProviders.name, instance.providerId),
-        });
-        let pId = "";
-        if (existing) {
-          pId = existing.id;
-        } else {
-          const [created] = await db
-            .insert(sourceProviders)
-            .values({ name: instance.providerId, displayName: label, isActive: true })
-            .returning();
-          pId = created.id;
-        }
-        providerIds[instance.providerId] = pId;
+    for (const { instance, label } of providerConfigs) {
+      const existing = await db.query.sourceProviders.findFirst({
+        where: eq(sourceProviders.name, instance.providerId),
+      });
+      let pId = "";
+      if (existing) {
+        pId = existing.id;
+      } else {
+        const [created] = await db
+          .insert(sourceProviders)
+          .values({ name: instance.providerId, displayName: label, isActive: true })
+          .returning();
+        pId = created.id;
+      }
+      providerIds[instance.providerId] = pId;
 
-        const runId = randomUUID();
-        await db.insert(sourceSyncRuns).values({
-          id: runId,
-          providerId: pId,
-          status: "running",
-          startedAt: new Date(),
-        });
-        providerSyncRunIds[instance.providerId] = runId;
-      })
-    );
+      const runId = randomUUID();
+      await db.insert(sourceSyncRuns).values({
+        id: runId,
+        providerId: pId,
+        status: "running",
+        startedAt: new Date(),
+      });
+      providerSyncRunIds[instance.providerId] = runId;
+    }
 
-    // ─── 3. Fetch index from ALL providers IN PARALLEL ────────────
-    const fetchResults = await Promise.all(
-      providerConfigs.map(async ({ instance, label }) => {
-        try {
-          const items = await instance.fetchIndex({ perPage });
-          console.log(`[FastSync] ${instance.providerId}: ${items.length} items`);
-          return { provider: instance, label, items, status: "success", error: null };
-        } catch (e: any) {
-          console.error(`[FastSync] Fetch error ${instance.providerId}:`, e.message);
-          return { provider: instance, label, items: [] as any[], status: "failed", error: e.message as string };
-        }
-      })
-    );
+    // ─── 3. Fetch index from ALL providers SEQUENTIALLY (APIs first) ───
+    const fetchResults = [];
+    for (const { instance, label } of providerConfigs) {
+      try {
+        console.log(`[FastSync] Starting fetch for ${instance.providerId} (${label})...`);
+        const items = await instance.fetchIndex({ perPage });
+        console.log(`[FastSync] Finished fetch for ${instance.providerId}: ${items.length} items`);
+        fetchResults.push({ provider: instance, label, items, status: "success", error: null });
+      } catch (e: any) {
+        console.error(`[FastSync] Fetch error ${instance.providerId}:`, e.message);
+        fetchResults.push({ provider: instance, label, items: [] as any[], status: "failed", error: e.message as string });
+      }
+    }
 
     // ─── 4. Normalize all items ───────────────────────────────────
     const allNormalized: { normalized: any; fingerprint: string; providerId: string; syncRunId: string }[] = [];
