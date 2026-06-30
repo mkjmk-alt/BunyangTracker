@@ -255,10 +255,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               <button className="w-full rounded-lg bg-primary py-3 text-sm font-bold text-primary-foreground shadow transition-all hover:bg-primary/90">
                 알림 받기 (팔로우)
               </button>
-              {latestAnn?.pblancUrl || (latestAnn?.atchmnflSeqNo && latestAnn?.atchmnflSn) || project.housingMgmtNo === "2026000098" ? (
+              {latestAnn?.pblancUrl || (latestAnn?.atchmnflSeqNo && latestAnn?.atchmnflSn && latestAnn.atchmnflSeqNo !== "NONE" && latestAnn.atchmnflSn !== "NONE") || project.housingMgmtNo === "2026000098" ? (
                 <a 
                   href={
-                    (latestAnn?.atchmnflSeqNo && latestAnn?.atchmnflSn) 
+                    (latestAnn?.atchmnflSeqNo && latestAnn?.atchmnflSn && latestAnn.atchmnflSeqNo !== "NONE" && latestAnn.atchmnflSn !== "NONE") 
                     ? `https://static.applyhome.co.kr/ai/aia/getAtchmnfl.do?houseManageNo=${project.housingMgmtNo}&pblancNo=${latestAnn.announceNo}&atchmnflSeqNo=${latestAnn.atchmnflSeqNo}&atchmnflSn=${latestAnn.atchmnflSn}`
                     : project.housingMgmtNo === "2026000098"
                     ? `https://static.applyhome.co.kr/ai/aia/getAtchmnfl.do?houseManageNo=2026000098&pblancNo=2026000098&atchmnflSeqNo=1778246&atchmnflSn=7`
