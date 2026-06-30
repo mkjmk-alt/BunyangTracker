@@ -194,7 +194,7 @@ export class ApplyHomeApiProvider implements SourceProvider<ApplyHomeApt> {
       return { seqNo: "NONE", sn: "NONE" };
     } catch (e) {
       console.error(`[ApplyHome] Failed to discover attachments for ${houseManageNo}:`, e);
-      return { seqNo: null, sn: null };
+      return { seqNo: "NONE", sn: "NONE" };
     }
   }
 
