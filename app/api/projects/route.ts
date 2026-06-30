@@ -33,3 +33,26 @@ export async function GET(request: Request) {
     pageSize,
   });
 }
+
+export async function DELETE(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+  if (!id) {
+    return NextResponse.json({ error: "id parameter is required" }, { status: 400 });
+  }
+
+  try {
+    const { announcements, announcementSnapshots, announcementUnits } = await import("@/lib/db/schema");
+    // Delete snapshots first
+    await db.delete(announcementSnapshots).where(eq(announcementSnapshots.announcementId, id));
+    // Delete units
+    await db.delete(announcementUnits).where(eq(announcementUnits.announcementId, id));
+    // Delete announcement
+    await db.delete(announcements).where(eq(announcements.id, id));
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error(`Failed to delete announcement ${id}:`, error.message);
+    return NextResponse.json({ error: "Failed to delete announcement" }, { status: 500 });
+  }
+}

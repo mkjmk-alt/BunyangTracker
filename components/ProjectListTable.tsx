@@ -60,6 +60,13 @@ interface Props {
 }
 
 export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt }: Props) {
+  const [projects, setProjects] = useState<SerializedProjectAnnouncement[]>(initialProjects);
+
+  // Sync projects state when initialProjects prop changes
+  useEffect(() => {
+    setProjects(initialProjects);
+  }, [initialProjects]);
+
   // Filter States
   const [selectedRegions, setSelectedRegions] = useState<Set<string>>(new Set());
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
@@ -108,7 +115,7 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
 
   // Get unique lists of data in current list
   const regionPriorityOrder = ["서울특별시", "인천광역시", "경기도"];
-  const allRegions = Array.from(new Set(initialProjects.map(getRegionLabel))).sort((a, b) => {
+  const allRegions = Array.from(new Set(projects.map(getRegionLabel))).sort((a, b) => {
     const idxA = regionPriorityOrder.indexOf(a);
     const idxB = regionPriorityOrder.indexOf(b);
 
@@ -120,15 +127,15 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
 
     return a.localeCompare(b);
   });
-  const allTypes = Array.from(new Set(initialProjects.map(p => p.supplyType))).sort();
+  const allTypes = Array.from(new Set(projects.map(p => p.supplyType))).sort();
   const allStatuses = Array.from(
     new Set(
-      initialProjects.map(p => getDynamicStatus(p.applyStartDate, p.applyEndDate, kstToday).displayStatus)
+      projects.map(p => getDynamicStatus(p.applyStartDate, p.applyEndDate, kstToday).displayStatus)
     )
   ).sort();
   const allCategories = ["모집공고", "결과/발표", "계약/입주안내", "변경/정정", "일반공지/기타"];
 
-  // Reset to full selection when initialProjects changes
+  // Reset to full selection when projects list changes
   useEffect(() => {
     setSelectedRegions(new Set(allRegions));
     setSelectedTypes(new Set(allTypes));
@@ -144,7 +151,7 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
     } else {
       setSelectedStatuses(new Set(filteredDefault));
     }
-  }, [initialProjects]);
+  }, [projects]);
 
   // Load hidden IDs from localStorage on mount
   useEffect(() => {
@@ -250,8 +257,36 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
     }
   };
 
+  // Delete Announcement Handler
+  const deleteAnnouncement = async (id: string, name: string) => {
+    if (!confirm(`'${name}' 공고를 데이터베이스에서 정말 영구 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/projects?id=${id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error("HTTP error " + res.status);
+      }
+
+      const data = await res.json();
+      if (data.success) {
+        setProjects((prev) => prev.filter((p) => p.id !== id));
+        alert("성공적으로 삭제되었습니다.");
+      } else {
+        alert("삭제에 실패했습니다: " + (data.error || "알 수 없는 오류"));
+      }
+    } catch (err: any) {
+      console.error("Delete failed:", err);
+      alert("삭제 중 오류가 발생했습니다: " + err.message);
+    }
+  };
+
   // Filtered List
-  const filteredProjects = initialProjects.filter(p => {
+  const filteredProjects = projects.filter(p => {
     const isHidden = hiddenIds.has(p.id);
     if (showHiddenOnly && !isHidden) return false;
     if (!showHiddenOnly && isHidden) return false;
@@ -616,30 +651,32 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
                     </td>
                     <td className="px-2 py-3 text-xs">{ann.winnerAnnounceDate || "-"}</td>
                     <td className="px-2 py-3 text-center">
-                      {showHiddenOnly ? (
+                      <div className="flex items-center justify-center gap-1.5">
+                        {showHiddenOnly ? (
+                          <button
+                            onClick={() => restoreAnnouncement(ann.id)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-500/5 hover:bg-blue-500/10 border border-blue-500/15 transition-all subtle-shadow"
+                            title="숨김 목록에서 복원"
+                          >
+                            <span>복원</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => hideAnnouncement(ann.id)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold text-muted-foreground hover:text-destructive bg-muted/40 hover:bg-destructive/5 border border-muted/50 hover:border-destructive/15 transition-all opacity-70 group-hover:opacity-100"
+                            title="목록에서 숨기기"
+                          >
+                            <span>숨기기</span>
+                          </button>
+                        )}
                         <button
-                          onClick={() => restoreAnnouncement(ann.id)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-500/5 hover:bg-blue-500/10 border border-blue-500/15 transition-all subtle-shadow"
-                          title="숨김 목록에서 복원"
+                          onClick={() => deleteAnnouncement(ann.id, ann.project?.name || "")}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold text-red-600 hover:text-white bg-red-500/5 hover:bg-red-500 border border-red-500/15 hover:border-red-500 transition-all opacity-70 group-hover:opacity-100"
+                          title="데이터베이스에서 영구 삭제"
                         >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                          <span>복원</span>
+                          <span>삭제</span>
                         </button>
-                      ) : (
-                        <button
-                          onClick={() => hideAnnouncement(ann.id)}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold text-muted-foreground hover:text-destructive bg-muted/40 hover:bg-destructive/5 border border-muted/50 hover:border-destructive/15 transition-all opacity-70 group-hover:opacity-100"
-                          title="목록에서 숨기기"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                          </svg>
-                          <span>숨기기</span>
-                        </button>
-                      )}
+                      </div>
                     </td>
                     <td className="px-2 py-3 text-center">
                       <StatusBadge status={currentStatus} label={currentDisplayStatus} />

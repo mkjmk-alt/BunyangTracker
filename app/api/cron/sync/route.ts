@@ -11,7 +11,7 @@ import { MyHomeApiProvider } from "@/lib/sources/myhome-api";
 import { IHWebProvider } from "@/lib/sources/ih-web";
 import { BMCWebProvider } from "@/lib/sources/bmc-web";
 import { generateFingerprint } from "@/lib/normalize/announcement";
-import { eq, sql, inArray, and, gte, like } from "drizzle-orm";
+import { eq, sql, inArray, and, gte, like, isNotNull } from "drizzle-orm";
 import { compareAnnouncements, generateDiffSummary } from "@/lib/diff/announcement-diff";
 import { isHousingRecruitment } from "@/lib/utils";
 import { randomUUID } from "crypto";
@@ -717,6 +717,39 @@ export async function GET(request: Request) {
           totalUpserted: pUpserted,
         })
         .where(eq(sourceSyncRuns.id, runId));
+    }
+
+    // ─── 8. Expired announcements automated cleanup (3 months / 90 days ago) ───
+    try {
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().split('T')[0];
+
+      // Find old announcements to delete
+      const oldAnns = await db
+        .select({ id: announcements.id })
+        .from(announcements)
+        .where(
+          and(
+            isNotNull(announcements.applyEndDate),
+            sql`${announcements.applyEndDate} < ${ninetyDaysAgoStr}`
+          )
+        );
+
+      if (oldAnns.length > 0) {
+        const oldIds = oldAnns.map(a => a.id);
+        console.log(`[FastSync] Cleaning up ${oldIds.length} expired announcements older than ${ninetyDaysAgoStr}...`);
+        
+        // Delete snapshots & units first to satisfy foreign keys
+        const { announcementSnapshots, announcementUnits } = await import("@/lib/db/schema");
+        await db.delete(announcementSnapshots).where(inArray(announcementSnapshots.announcementId, oldIds));
+        await db.delete(announcementUnits).where(inArray(announcementUnits.announcementId, oldIds));
+        await db.delete(announcements).where(inArray(announcements.id, oldIds));
+        
+        console.log(`[FastSync] Finished cleaning up expired announcements.`);
+      }
+    } catch (cleanupErr: any) {
+      console.error(`[FastSync] Failed during expired announcements cleanup:`, cleanupErr.message);
     }
 
     console.log(`[FastSync] Done in ${elapsed}ms`);
