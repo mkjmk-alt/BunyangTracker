@@ -253,6 +253,41 @@ export async function GET(request: Request) {
       return dest;
     }
 
+    // Load all existing announcements from the DB to find matches across runs
+    let existingDbAnns: any[] = [];
+    try {
+      existingDbAnns = await db
+        .select({
+          id: announcements.id,
+          announceNo: announcements.announceNo,
+          announceDate: announcements.announceDate,
+          applyStartDate: announcements.applyStartDate,
+          applyEndDate: announcements.applyEndDate,
+          pblancUrl: announcements.pblancUrl,
+          homepageAdres: announcements.homepageAdres,
+          externalSourceKey: announcements.externalSourceKey,
+          name: housingProjects.name,
+          address: housingProjects.address,
+        })
+        .from(announcements)
+        .innerJoin(housingProjects, eq(announcements.projectId, housingProjects.id));
+    } catch (e: any) {
+      console.error(`[FastSync] Failed to load existing DB announcements for cross-deduplication:`, e.message);
+    }
+
+    // Cross-run deduplication: map candidate announceNo to matching DB announceNo if highly similar
+    for (const cand of candidateAnns) {
+      for (const dbAnn of existingDbAnns) {
+        if (isSameAnnouncement(dbAnn, cand)) {
+          if (cand.announceNo !== dbAnn.announceNo) {
+            console.log(`[FastSync] Mapping candidate ${cand.announceNo} to existing DB ${dbAnn.announceNo} (${dbAnn.name}) due to high similarity.`);
+            cand.announceNo = dbAnn.announceNo;
+          }
+          break;
+        }
+      }
+    }
+
     const mergedAnns: any[] = [];
     for (const cand of candidateAnns) {
       let matched = false;
