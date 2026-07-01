@@ -25,7 +25,17 @@ export class SHWebProvider implements SourceProvider<SHAnnouncement> {
         .replace(/\s+/g, " ")
         .trim();
 
-      const keywords = ["인터넷 청약신청", "청약신청", "접수기간", "신청기간", "청약접수", "접수일정"];
+      const keywords = [
+        "인터넷 청약신청",
+        "청약신청",
+        "접수기간",
+        "신청기간",
+        "청약접수",
+        "접수일정",
+        "계약기간",
+        "계약일정",
+        "서류제출"
+      ];
       for (const keyword of keywords) {
         const idx = text.indexOf(keyword);
         if (idx !== -1) {
