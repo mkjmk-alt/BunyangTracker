@@ -20,8 +20,8 @@ export class LHApiProvider implements SourceProvider<LHAnnouncement> {
     const startDate = format(oneYearAgo, "yyyy.MM.dd");
     const endDate = format(today, "yyyy.MM.dd");
 
-    // ponytail: Categories expanded to include 13 (주거복지/임대) and 39 (신혼희망타운/분양)
-    const categories = ["05", "06", "13", "31", "39"];
+    // ponytail: Categories expanded to include 13 (주거복지/임대), 39 (신혼희망타운/분양), and 54 (이익공유형/뉴홈)
+    const categories = ["05", "06", "13", "31", "39", "54"];
 
     const promises = categories.map(async (cat) => {
       try {
