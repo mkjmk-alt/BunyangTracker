@@ -11,8 +11,9 @@ export class LHApiProvider implements SourceProvider<LHAnnouncement> {
   async fetchIndex(options: FetchOptions): Promise<LHAnnouncement[]> {
     const apiKey = process.env.PUBLIC_DATA_API_KEY || "";
     const { page = 1, perPage = 20 } = options;
+    const maxPages = 10;
     
-    console.log(`[LH] Starting public housing fetch (Page ${page})...`);
+    console.log(`[LH] Starting public housing fetch (Page ${page}, perPage ${perPage})...`);
 
     const today = new Date();
     const oneYearAgo = subYears(today, 1);
@@ -25,45 +26,54 @@ export class LHApiProvider implements SourceProvider<LHAnnouncement> {
 
     const promises = categories.map(async (cat) => {
       try {
-        const params = new URLSearchParams({
-          serviceKey: apiKey.trim(),
-          PG_SZ: perPage.toString(),
-          PAGE: page.toString(),
-          UPP_AIS_TP_CD: cat,
-          PAN_NT_ST_DT: startDate,
-          CLSG_DT: endDate,
-          _type: "json", // Confirming _type instead of returnType
-        });
+        const allItems: any[] = [];
 
-        const url = `${this.baseUri}?${params.toString()}`;
-        console.log(`[LH] Fetching category ${cat} from ${startDate} to ${endDate}...`);
-        
-        const response = await fetch(url);
-        const text = await response.text();
-        
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch (e) {
-          console.error(`[LH] Failed to parse JSON for cat ${cat}.`);
-          console.error(`[LH] Raw response (first 300 chars): ${text.substring(0, 300)}`);
-          return [];
+        for (let currentPage = page; currentPage < page + maxPages; currentPage++) {
+          const params = new URLSearchParams({
+            serviceKey: apiKey.trim(),
+            PG_SZ: perPage.toString(),
+            PAGE: currentPage.toString(),
+            UPP_AIS_TP_CD: cat,
+            PAN_NT_ST_DT: startDate,
+            CLSG_DT: endDate,
+            _type: "json", // Confirming _type instead of returnType
+          });
+
+          const url = `${this.baseUri}?${params.toString()}`;
+          console.log(`[LH] Fetching category ${cat} page ${currentPage} from ${startDate} to ${endDate}...`);
+          
+          const response = await fetch(url);
+          const text = await response.text();
+          
+          let data;
+          try {
+            data = JSON.parse(text);
+          } catch (e) {
+            console.error(`[LH] Failed to parse JSON for cat ${cat}.`);
+            console.error(`[LH] Raw response (first 300 chars): ${text.substring(0, 300)}`);
+            break;
+          }
+
+          // Corrected path based on LH API JSON structure: [ { "dsList": [...] } ]
+          // Usually, the response is an array where the first or second element contains the list
+          const pageItems = (data[1]?.dsList || data[0]?.dsList || []);
+          allItems.push(...pageItems);
+
+          if (pageItems.length < perPage) break;
         }
 
-        // Corrected path based on LH API JSON structure: [ { "dsList": [...] } ]
-        // Usually, the response is an array where the first or second element contains the list
-        const items = (data[1]?.dsList || data[0]?.dsList || []);
+        console.log(`[LH] Category ${cat}: Received ${allItems.length} items`);
 
-        console.log(`[LH] Category ${cat}: Received ${items.length} items`);
-
-        return items.map((item: any) => {
-          try {
-            return LHAnnouncementSchema.parse(item);
-          } catch (e: any) {
-            console.error(`[LH] Parse error in cat ${cat}:`, e.message);
-            return null;
-          }
-        }).filter(Boolean);
+        return allItems
+          .map((item: any) => {
+            try {
+              return LHAnnouncementSchema.parse(item);
+            } catch (e: any) {
+              console.error(`[LH] Parse error in cat ${cat}:`, e.message);
+              return null;
+            }
+          })
+          .filter(Boolean);
       } catch (error: any) {
         console.error(`[LH] Error fetching category ${cat}:`, error.message);
         return [];

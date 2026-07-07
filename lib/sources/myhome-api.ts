@@ -47,44 +47,52 @@ export class MyHomeApiProvider implements SourceProvider<MyHomeAnnouncement> {
   async fetchIndex(options: FetchOptions): Promise<MyHomeAnnouncement[]> {
     const apiKey = process.env.PUBLIC_DATA_API_KEY || "";
     const { page = 1, perPage = 80 } = options;
+    const maxPages = 10;
 
-    console.log(`[MyHome] Fetching public rental housing announcements (Page ${page})...`);
+    console.log(`[MyHome] Fetching public rental housing announcements (Page ${page}, perPage ${perPage})...`);
 
     try {
-      const params = new URLSearchParams({
-        serviceKey: apiKey.trim(),
-        numOfRows: perPage.toString(),
-        pageNo: page.toString(),
-        _type: "json"
-      });
+      const allItems: any[] = [];
 
-      const url = `${this.baseUri}?${params.toString()}`;
-      console.log(`[MyHome] Request URL: ${url.replace(apiKey.trim(), "HIDDEN_KEY")}`);
+      for (let currentPage = page; currentPage < page + maxPages; currentPage++) {
+        const params = new URLSearchParams({
+          serviceKey: apiKey.trim(),
+          numOfRows: perPage.toString(),
+          pageNo: currentPage.toString(),
+          _type: "json"
+        });
 
-      const response = await fetch(url);
-      const text = await response.text();
+        const url = `${this.baseUri}?${params.toString()}`;
+        console.log(`[MyHome] Request URL: ${url.replace(apiKey.trim(), "HIDDEN_KEY")}`);
 
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        console.error(`[MyHome] Failed to parse JSON response.`);
-        console.error(`[MyHome] Raw response: ${text.substring(0, 300)}`);
-        return [];
+        const response = await fetch(url);
+        const text = await response.text();
+
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          console.error(`[MyHome] Failed to parse JSON response.`);
+          console.error(`[MyHome] Raw response: ${text.substring(0, 300)}`);
+          break;
+        }
+
+        // Check standard public portal response format: response.body.items.item or response.body.item
+        const rawItems = data?.response?.body?.items?.item || data?.response?.body?.item;
+        if (!rawItems) break;
+
+        // Handle both single object and array responses (data.go.kr standard gotcha)
+        const pageItems = Array.isArray(rawItems) ? rawItems : [rawItems];
+        allItems.push(...pageItems);
+
+        const totalCount = Number(data?.response?.body?.totalCount || 0);
+        const fetchedAllKnownItems = totalCount > 0 && allItems.length >= totalCount;
+        if (pageItems.length < perPage || fetchedAllKnownItems) break;
       }
 
-      // Check standard public portal response format: response.body.items.item or response.body.item
-      const rawItems = data?.response?.body?.items?.item || data?.response?.body?.item;
-      if (!rawItems) {
-        console.log(`[MyHome] No items found in response body.`);
-        return [];
-      }
+      console.log(`[MyHome] Successfully fetched ${allItems.length} items.`);
 
-      // Handle both single object and array responses (data.go.kr standard gotcha)
-      const itemsList = Array.isArray(rawItems) ? rawItems : [rawItems];
-      console.log(`[MyHome] Successfully fetched ${itemsList.length} items.`);
-
-      return itemsList.map((item: any) => {
+      return allItems.map((item: any) => {
         try {
           return MyHomeAnnouncementSchema.parse(item);
         } catch (e: any) {

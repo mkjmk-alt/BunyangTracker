@@ -13,7 +13,6 @@ import { BMCWebProvider } from "@/lib/sources/bmc-web";
 import { generateFingerprint } from "@/lib/normalize/announcement";
 import { eq, sql, inArray, and, gte, like, isNotNull } from "drizzle-orm";
 import { compareAnnouncements, generateDiffSummary } from "@/lib/diff/announcement-diff";
-import { isHousingRecruitment } from "@/lib/utils";
 import { randomUUID } from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -23,23 +22,26 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const perPage = parseInt(searchParams.get("perPage") || "160");
   const fast = searchParams.get("fast") === "true";
+  const modeParam = searchParams.get("mode") || "all";
+  const mode = ["api", "web", "all"].includes(modeParam) ? modeParam : "all";
 
   try {
     // ─── 1. Register providers (sequential) ───────────────────────
-    const providerConfigs = [
+    const allProviderConfigs = [
       // 1. API Providers (API를 가장 먼저 취합)
-      { instance: new ApplyHomeApiProvider(), label: "청약홈 (민영/공공분양)" },
-      { instance: new LHApiProvider(), label: "LH 청약플러스 (공공주택/행복주택)" },
-      { instance: new MyHomeApiProvider(), label: "마이홈포털 (전국 임대/분양 통합)" },
+      { instance: new ApplyHomeApiProvider(), label: "청약홈 (민영/공공분양)", mode: "api" },
+      { instance: new LHApiProvider(), label: "LH 청약플러스 (공공주택/행복주택)", mode: "api" },
+      { instance: new MyHomeApiProvider(), label: "마이홈포털 (전국 임대/분양 통합)", mode: "api" },
       
       // 2. Web Scrapers (그 다음 순차 취합)
-      { instance: new ApplyHomeWebProvider(), label: "청약홈 실시간 웹 (민영/공공분양/기타)" },
-      { instance: new LHWebProvider(), label: "LH 청약플러스 실시간 웹 (임대/분양)" },
-      { instance: new SHWebProvider(), label: "SH 서울주택도시공사 실시간 웹 (분양/임대)" },
-      { instance: new GHWebProvider(), label: "GH 경기주택도시공사 실시간 웹 (청약공고)" },
-      { instance: new IHWebProvider(), label: "iH 인천도시공사 실시간 웹 (분양/임대)" },
-      { instance: new BMCWebProvider(), label: "BMC 부산도시공사 실시간 웹 (분양/임대)" },
+      { instance: new ApplyHomeWebProvider(), label: "청약홈 실시간 웹 (민영/공공분양/기타)", mode: "web" },
+      { instance: new LHWebProvider(), label: "LH 청약플러스 실시간 웹 (임대/분양)", mode: "web" },
+      { instance: new SHWebProvider(), label: "SH 서울주택도시공사 실시간 웹 (분양/임대)", mode: "web" },
+      { instance: new GHWebProvider(), label: "GH 경기주택도시공사 실시간 웹 (청약공고)", mode: "web" },
+      { instance: new IHWebProvider(), label: "iH 인천도시공사 실시간 웹 (분양/임대)", mode: "web" },
+      { instance: new BMCWebProvider(), label: "BMC 부산도시공사 실시간 웹 (분양/임대)", mode: "web" },
     ];
+    const providerConfigs = allProviderConfigs.filter((provider) => mode === "all" || provider.mode === mode);
 
     const providerIds: Record<string, string> = {};
     const providerSyncRunIds: Record<string, string> = {};
@@ -764,6 +766,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
+      mode,
       totalFetched,
       totalProjects: projectIdMap.size,
       totalAnnouncements: upsertedCount,

@@ -26,8 +26,9 @@ export class ApplyHomeApiProvider implements SourceProvider<ApplyHomeApt> {
   async fetchIndex(options: FetchOptions): Promise<ApplyHomeApt[]> {
     const apiKey = process.env.PUBLIC_DATA_API_KEY || "";
     const { page = 1, perPage = 20 } = options;
+    const maxPages = 10;
     
-    console.log(`[ApplyHome] Starting multi-type fetch (Page ${page})...`);
+    console.log(`[ApplyHome] Starting multi-type fetch (Page ${page}, perPage ${perPage})...`);
 
     const oneYearAgo = new Date();
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
@@ -35,41 +36,52 @@ export class ApplyHomeApiProvider implements SourceProvider<ApplyHomeApt> {
 
     const promises = Object.entries(ENDPOINTS).map(async ([type, operation]) => {
       try {
-        const params = new URLSearchParams({
-          page: page.toString(),
-          perPage: perPage.toString(),
-          returnType: "JSON",
-          "cond[RCRIT_PBLANC_DE::GTE]": dateStr,
-          serviceKey: apiKey.trim()
-        });
-        
-        if (type === 'APT') {
-          params.append("cond[HOUSE_SECD::EQ]", "01");
+        const allItems: any[] = [];
+
+        for (let currentPage = page; currentPage < page + maxPages; currentPage++) {
+          const params = new URLSearchParams({
+            page: currentPage.toString(),
+            perPage: perPage.toString(),
+            returnType: "JSON",
+            "cond[RCRIT_PBLANC_DE::GTE]": dateStr,
+            serviceKey: apiKey.trim()
+          });
+          
+          if (type === 'APT') {
+            params.append("cond[HOUSE_SECD::EQ]", "01");
+          }
+
+          const url = `${this.baseUri}/${operation}?${params.toString()}`;
+          console.log(`[ApplyHome] Fetching ${type} page ${currentPage}...`);
+          
+          const response = await fetch(url);
+          const text = await response.text();
+          const data = JSON.parse(text);
+          const pageItems = (data.data || []).map((item: any) => ({ ...item, _type: type }));
+          allItems.push(...pageItems);
+
+          const totalCount = Number(data.totalCount || 0);
+          const fetchedAllKnownItems = totalCount > 0 && allItems.length >= totalCount;
+          if (pageItems.length < perPage || fetchedAllKnownItems) break;
         }
 
-        const url = `${this.baseUri}/${operation}?${params.toString()}`;
-        console.log(`[ApplyHome] Fetching ${type}...`);
-        
-        const response = await fetch(url);
-        const text = await response.text();
-        const data = JSON.parse(text);
-        const items = (data.data || []).map((item: any) => ({ ...item, _type: type }));
+        console.log(`[ApplyHome] ${type}: Received ${allItems.length} items`);
 
-        console.log(`[ApplyHome] ${type}: Received ${items.length} items`);
-
-        return items.map((item: any) => {
-          try {
-            const normalizedItem = {
-              ...item,
-              SUBSCRPT_RCEPT_BGNDE: item.SUBSCRPT_RCEPT_BGNDE || item.RCEPT_BGNDE,
-              SUBSCRPT_RCEPT_ENDDE: item.SUBSCRPT_RCEPT_ENDDE || item.RCEPT_ENDDE,
-            };
-            return ApplyHomeAptSchema.parse(normalizedItem);
-          } catch (e: any) {
-            console.error(`[ApplyHome] Parse error in ${type} (${item?.HOUSE_NM}):`, e.message);
-            return null;
-          }
-        }).filter(Boolean);
+        return allItems
+          .map((item: any) => {
+            try {
+              const normalizedItem = {
+                ...item,
+                SUBSCRPT_RCEPT_BGNDE: item.SUBSCRPT_RCEPT_BGNDE || item.RCEPT_BGNDE,
+                SUBSCRPT_RCEPT_ENDDE: item.SUBSCRPT_RCEPT_ENDDE || item.RCEPT_ENDDE,
+              };
+              return ApplyHomeAptSchema.parse(normalizedItem);
+            } catch (e: any) {
+              console.error(`[ApplyHome] Parse error in ${type} (${item?.HOUSE_NM}):`, e.message);
+              return null;
+            }
+          })
+          .filter(Boolean);
       } catch (error: any) {
         console.error(`[ApplyHome] Error fetching ${type}:`, error.message);
         return [];
