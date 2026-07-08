@@ -58,8 +58,8 @@ function getSourceMetadata(...values: any[]) {
 export async function GET(request: Request) {
   const startTime = Date.now();
   const { searchParams } = new URL(request.url);
-  const perPage = parseInt(searchParams.get("perPage") || "100");
-  const maxPages = parseInt(searchParams.get("maxPages") || "5");
+  const perPage = parseInt(searchParams.get("perPage") || "30");
+  const maxPages = parseInt(searchParams.get("maxPages") || "1");
   const modeParam = searchParams.get("mode") || "all";
   const mode = ["api", "web", "all"].includes(modeParam) ? modeParam : "all";
   const fast = searchParams.has("fast") ? searchParams.get("fast") === "true" : mode === "api";

@@ -26,9 +26,9 @@ interface Option {
 }
 
 const SETTINGS_KEY = "bunyangSyncSettings";
-const DEFAULT_PER_PAGE = "100";
-const DEFAULT_MAX_PAGES = "5";
-const SYNC_TIMEOUT_MS = 120000;
+const DEFAULT_PER_PAGE = "30";
+const DEFAULT_MAX_PAGES = "1";
+const SYNC_TIMEOUT_MS = 180000;
 
 const apiProviderOptions: Option[] = [
   { value: "applyhome_api", label: "청약홈 API" },

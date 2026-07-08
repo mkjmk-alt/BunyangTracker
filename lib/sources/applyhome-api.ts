@@ -28,7 +28,7 @@ export class ApplyHomeApiProvider implements SourceProvider<ApplyHomeApt> {
 
   async fetchIndex(options: FetchOptions): Promise<ApplyHomeApt[]> {
     const apiKey = process.env.PUBLIC_DATA_API_KEY || "";
-    const { page = 1, perPage = 100, maxPages = 5 } = options;
+    const { page = 1, perPage = 30, maxPages = 1 } = options;
     const selectedTypes = options.applyhomeTypes?.length
       ? new Set(options.applyhomeTypes)
       : null;
