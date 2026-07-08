@@ -28,6 +28,7 @@ export interface SerializedProjectAnnouncement {
   rawPayloadId: string | null;
   pblancUrl: string | null;
   homepageAdres: string | null;
+  metadata: unknown;
   atchmnflSeqNo: string | null;
   atchmnflSn: string | null;
   isBookmarked: boolean | null;
@@ -599,7 +600,7 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
                           {ann.supplyType}
                         </span>
                         {(() => {
-                          const badge = getSourceBadge(ann.externalSourceKey);
+                          const badge = getSourceBadge(ann.externalSourceKey, ann.metadata);
                           return badge ? (
                             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${badge.className}`}>
                               {badge.label}
@@ -709,7 +710,7 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
               ann.applyEndDate,
               kstToday
             );
-            const badge = getSourceBadge(ann.externalSourceKey);
+            const badge = getSourceBadge(ann.externalSourceKey, ann.metadata);
             const reg = getRegionLabel(ann);
 
             return (

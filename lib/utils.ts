@@ -56,8 +56,61 @@ export function getDynamicStatus(
   };
 }
 
-export function getSourceBadge(key: string | null | undefined) {
-  if (!key) return null;
+type SourceMetadataObject = {
+  sourceKeys?: unknown;
+  sourceProviders?: unknown;
+};
+
+function isSourceMetadataObject(value: unknown): value is SourceMetadataObject {
+  return typeof value === "object" && value !== null;
+}
+
+function getSourceKeys(key: string | null | undefined, metadata?: unknown) {
+  const keys = new Set<string>();
+  if (key) keys.add(key);
+
+  if (!isSourceMetadataObject(metadata)) {
+    return Array.from(keys);
+  }
+
+  if (Array.isArray(metadata.sourceKeys)) {
+    metadata.sourceKeys.forEach((sourceKey) => {
+      if (typeof sourceKey === "string") keys.add(sourceKey);
+    });
+  }
+
+  if (Array.isArray(metadata.sourceProviders)) {
+    metadata.sourceProviders.forEach((provider) => {
+      if (typeof provider === "string") keys.add(`${provider}:metadata`);
+    });
+  }
+
+  return Array.from(keys);
+}
+
+export function getSourceBadge(key: string | null | undefined, metadata?: unknown) {
+  const keys = getSourceKeys(key, metadata);
+  if (keys.length === 0) return null;
+
+  const hasLhApi = keys.some((sourceKey) => sourceKey.startsWith("lh_api"));
+  const hasLhWeb = keys.some((sourceKey) => sourceKey.startsWith("lh_web"));
+  if (hasLhApi && hasLhWeb) {
+    return {
+      label: "[API+크롤링] LH",
+      className: "bg-violet-100 text-violet-700 dark:bg-violet-950/30 dark:text-violet-400 border border-violet-200/50 dark:border-violet-900/30"
+    };
+  }
+
+  const hasApplyHomeApi = keys.some((sourceKey) => sourceKey.startsWith("applyhome_api"));
+  const hasApplyHomeWeb = keys.some((sourceKey) => sourceKey.startsWith("applyhome_web"));
+  if (hasApplyHomeApi && hasApplyHomeWeb) {
+    return {
+      label: "[API+크롤링] 청약홈",
+      className: "bg-violet-100 text-violet-700 dark:bg-violet-950/30 dark:text-violet-400 border border-violet-200/50 dark:border-violet-900/30"
+    };
+  }
+
+  key = keys[0];
   if (key.startsWith("applyhome_web")) {
     return { 
       label: "[크롤러] 청약홈", 

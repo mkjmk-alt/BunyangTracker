@@ -144,7 +144,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               </span>
               {latestAnn && (
                 (() => {
-                  const badge = getSourceBadge(latestAnn.externalSourceKey);
+                  const badge = getSourceBadge(latestAnn.externalSourceKey, latestAnn.metadata);
                   return badge ? (
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badge.className}`}>
                       {badge.label}

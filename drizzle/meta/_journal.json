@@ -15,6 +15,13 @@
       "when": 1778759535204,
       "tag": "0001_careful_skullbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783524385850,
+      "tag": "0002_strong_scourge",
+      "breakpoints": true
     }
   ]
 }

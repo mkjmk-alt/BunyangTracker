@@ -110,6 +110,7 @@ export const announcements = pgTable("announcements", {
   rawPayloadId: uuid("raw_payload_id").references(() => rawSourcePayloads.id),
   pblancUrl: text("pblanc_url"),
   homepageAdres: text("homepage_adres"),
+  metadata: jsonb("metadata"),
   atchmnflSeqNo: varchar("atchmnfl_seq_no", { length: 100 }),
   atchmnflSn: varchar("atchmnfl_sn", { length: 100 }),
   isBookmarked: boolean("is_bookmarked").default(false),

@@ -18,6 +18,10 @@ interface AnnouncementCardProps {
     applyStartDate: string | null;
     applyEndDate: string | null;
     externalSourceKey?: string | null;
+    metadata?: {
+      sourceKeys?: string[];
+      sourceProviders?: string[];
+    } | null;
   };
 }
 
@@ -37,7 +41,7 @@ export function AnnouncementCard({ project, announcement }: AnnouncementCardProp
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-xs font-semibold text-primary uppercase tracking-wider">{announcement.supplyType}</span>
             {(() => {
-              const badge = getSourceBadge(announcement.externalSourceKey);
+              const badge = getSourceBadge(announcement.externalSourceKey, announcement.metadata);
               return badge ? (
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded leading-none ${badge.className}`}>
                   {badge.label}

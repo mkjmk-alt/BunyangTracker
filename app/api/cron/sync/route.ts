@@ -24,6 +24,37 @@ function parseListParam(searchParams: URLSearchParams, key: string): string[] {
     .filter(Boolean);
 }
 
+function getSourceProviderFromKey(key: string | null | undefined) {
+  return key?.split(":")[0] || null;
+}
+
+function getSourceMetadata(...values: any[]) {
+  const sourceKeys = new Set<string>();
+
+  for (const value of values) {
+    if (!value) continue;
+    if (typeof value.externalSourceKey === "string") sourceKeys.add(value.externalSourceKey);
+    const metadata = value.metadata || value.sourceMetadata;
+    if (Array.isArray(metadata?.sourceKeys)) {
+      metadata.sourceKeys.forEach((key: unknown) => {
+        if (typeof key === "string") sourceKeys.add(key);
+      });
+    }
+  }
+
+  const keys = Array.from(sourceKeys).sort();
+  const providers = Array.from(
+    new Set(keys.map(getSourceProviderFromKey).filter((provider): provider is string => Boolean(provider)))
+  ).sort();
+
+  return {
+    sourceKeys: keys,
+    sourceProviders: providers,
+    hasApiSource: providers.some((provider) => provider.endsWith("_api")),
+    hasWebSource: providers.some((provider) => provider.endsWith("_web")),
+  };
+}
+
 export async function GET(request: Request) {
   const startTime = Date.now();
   const { searchParams } = new URL(request.url);
@@ -207,6 +238,7 @@ export async function GET(request: Request) {
         atchmnflSeqNo: null as string | null,
         atchmnflSn: null as string | null,
         normalized,
+        metadata: getSourceMetadata({ externalSourceKey: normalized.externalSourceKey }),
         providerId,
         syncRunId,
       });
@@ -271,6 +303,7 @@ export async function GET(request: Request) {
       const priorityKeys = ["lh_web", "sh_web", "gh_web", "ih_web", "bmc_web"];
       const isSrcPriority = priorityKeys.some(key => src.externalSourceKey.startsWith(key));
       const isDestPriority = priorityKeys.some(key => dest.externalSourceKey.startsWith(key));
+      dest.metadata = getSourceMetadata(dest, src);
       
       if (isSrcPriority && !isDestPriority) {
         dest.externalSourceKey = src.externalSourceKey;
@@ -293,6 +326,7 @@ export async function GET(request: Request) {
           pblancUrl: announcements.pblancUrl,
           homepageAdres: announcements.homepageAdres,
           externalSourceKey: announcements.externalSourceKey,
+          metadata: announcements.metadata,
           name: housingProjects.name,
           address: housingProjects.address,
         })
@@ -409,6 +443,7 @@ export async function GET(request: Request) {
         ...ann,
         id: dbAnn ? dbAnn.id : randomUUID(),
         latestSnapshotId: dbAnn ? dbAnn.latestSnapshotId : null,
+        metadata: getSourceMetadata(ann, dbAnn),
       };
     });
 
@@ -550,6 +585,7 @@ export async function GET(request: Request) {
                 ELSE excluded.pblanc_url
               END`,
               homepageAdres: sql`excluded.homepage_adres`,
+              metadata: sql`excluded.metadata`,
               externalSourceKey: sql`CASE
                 WHEN excluded.external_source_key LIKE 'myhome_api:%' AND announcements.external_source_key NOT LIKE 'myhome_api:%' THEN announcements.external_source_key
                 ELSE excluded.external_source_key
@@ -583,6 +619,7 @@ export async function GET(request: Request) {
                     ELSE ${ann.pblancUrl}
                   END`,
                   homepageAdres: ann.homepageAdres,
+                  metadata: ann.metadata,
                   externalSourceKey: sql`CASE
                     WHEN ${ann.externalSourceKey} LIKE 'myhome_api:%' AND announcements.external_source_key NOT LIKE 'myhome_api:%' THEN announcements.external_source_key
                     ELSE ${ann.externalSourceKey}
