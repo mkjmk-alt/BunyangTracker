@@ -26,7 +26,7 @@ export class LHApiProvider implements SourceProvider<LHAnnouncement> {
       ? []
       : options.lhCategories?.length
       ? options.lhCategories
-      : ["05", "06", "13", "22", "31", "39", "54"];
+      : ["01", "05", "06", "13", "22", "39", "54"];
 
     const promises = categories.map(async (cat) => {
       try {

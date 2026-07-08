@@ -42,13 +42,13 @@ const applyhomeTypeOptions: Option[] = [
 ];
 
 const lhCategoryOptions: Option[] = [
+  { value: "01", label: "토지" },
   { value: "05", label: "분양주택" },
   { value: "06", label: "임대주택" },
-  { value: "13", label: "주거복지/임대" },
+  { value: "13", label: "주거복지" },
   { value: "22", label: "상가" },
-  { value: "31", label: "임대상가" },
-  { value: "39", label: "신혼희망타운/분양" },
-  { value: "54", label: "뉴홈/이익공유형" },
+  { value: "39", label: "공공분양(신혼희망)" },
+  { value: "54", label: "이익공유형 분양주택" },
 ];
 
 const myhomeKeywordOptions: Option[] = [
@@ -65,7 +65,7 @@ const defaultSettings: SyncSettings = {
   apiProviders: apiProviderOptions.map((option) => option.value),
   applyhomeTypes: applyhomeTypeOptions.map((option) => option.value),
   lhCategories: lhCategoryOptions.map((option) => option.value),
-  myhomeKeywords: myhomeKeywordOptions.map((option) => option.value),
+  myhomeKeywords: [],
 };
 
 const syncModes: Record<SyncMode, { label: string; runningLabel: string; className: string }> = {
@@ -120,7 +120,9 @@ function buildSyncQuery(mode: SyncMode, settings: SyncSettings) {
   params.set("apiProviders", serialize(settings.apiProviders));
   params.set("applyhomeTypes", serialize(settings.applyhomeTypes));
   params.set("lhCategories", serialize(settings.lhCategories));
-  params.set("myhomeKeywords", serialize(settings.myhomeKeywords));
+  if (settings.myhomeKeywords.length > 0) {
+    params.set("myhomeKeywords", settings.myhomeKeywords.join(","));
+  }
 
   return params.toString();
 }
@@ -335,12 +337,15 @@ export function SyncButton() {
             </section>
 
             <section>
-              <h3 className="mb-2 text-xs font-bold text-muted-foreground">LH API 대분류</h3>
+              <h3 className="mb-2 text-xs font-bold text-muted-foreground">LH API 요청 대분류</h3>
               {renderOptions("lhCategories", lhCategoryOptions)}
             </section>
 
             <section>
-              <h3 className="mb-2 text-xs font-bold text-muted-foreground">마이홈 API 키워드</h3>
+              <h3 className="mb-1 text-xs font-bold text-muted-foreground">마이홈 응답 필터</h3>
+              <p className="mb-2 text-xs text-muted-foreground">
+                마이홈 목록 API는 현재 공급유형 요청 파라미터가 동작하지 않아 전체 요청 후 응답에서 필터링합니다.
+              </p>
               {renderOptions("myhomeKeywords", myhomeKeywordOptions)}
             </section>
           </div>
