@@ -3,6 +3,7 @@ import { NormalizedAnnouncement } from "../validators";
 export interface FetchOptions {
   page?: number;
   perPage?: number;
+  maxPages?: number;
   backfillDays?: number;
   applyhomeTypes?: string[];
   lhCategories?: string[];

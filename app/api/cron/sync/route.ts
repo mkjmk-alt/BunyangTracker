@@ -27,7 +27,8 @@ function parseListParam(searchParams: URLSearchParams, key: string): string[] {
 export async function GET(request: Request) {
   const startTime = Date.now();
   const { searchParams } = new URL(request.url);
-  const perPage = parseInt(searchParams.get("perPage") || "160");
+  const perPage = parseInt(searchParams.get("perPage") || "100");
+  const maxPages = parseInt(searchParams.get("maxPages") || "5");
   const fast = searchParams.get("fast") === "true";
   const modeParam = searchParams.get("mode") || "all";
   const mode = ["api", "web", "all"].includes(modeParam) ? modeParam : "all";
@@ -95,6 +96,7 @@ export async function GET(request: Request) {
         console.log(`[FastSync] Starting fetch for ${instance.providerId} (${label})...`);
         const items = await instance.fetchIndex({
           perPage,
+          maxPages,
           applyhomeTypes,
           lhCategories,
           myhomeKeywords,

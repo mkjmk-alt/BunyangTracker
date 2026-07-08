@@ -10,8 +10,7 @@ export class LHApiProvider implements SourceProvider<LHAnnouncement> {
 
   async fetchIndex(options: FetchOptions): Promise<LHAnnouncement[]> {
     const apiKey = process.env.PUBLIC_DATA_API_KEY || "";
-    const { page = 1, perPage = 20 } = options;
-    const maxPages = 10;
+    const { page = 1, perPage = 100, maxPages = 5 } = options;
     
     console.log(`[LH] Starting public housing fetch (Page ${page}, perPage ${perPage})...`);
 

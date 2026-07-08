@@ -46,8 +46,7 @@ export class MyHomeApiProvider implements SourceProvider<MyHomeAnnouncement> {
 
   async fetchIndex(options: FetchOptions): Promise<MyHomeAnnouncement[]> {
     const apiKey = process.env.PUBLIC_DATA_API_KEY || "";
-    const { page = 1, perPage = 80 } = options;
-    const maxPages = 10;
+    const { page = 1, perPage = 100, maxPages = 5 } = options;
     const supplyTypes = options.myhomeKeywords?.filter(Boolean) || [];
 
     console.log(`[MyHome] Fetching public rental housing announcements (Page ${page}, perPage ${perPage})...`);

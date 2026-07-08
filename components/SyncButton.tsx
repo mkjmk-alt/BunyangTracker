@@ -26,6 +26,8 @@ interface Option {
 }
 
 const SETTINGS_KEY = "bunyangSyncSettings";
+const DEFAULT_PER_PAGE = "100";
+const DEFAULT_MAX_PAGES = "5";
 
 const apiProviderOptions: Option[] = [
   { value: "applyhome_api", label: "청약홈 API" },
@@ -111,13 +113,15 @@ function buildSyncQuery(mode: SyncMode, settings: SyncSettings) {
   const serialize = (values: string[]) => (values.length > 0 ? values.join(",") : "__none");
   const params = new URLSearchParams({
     mode,
-    perPage: "160",
+    perPage: DEFAULT_PER_PAGE,
+    maxPages: DEFAULT_MAX_PAGES,
   });
 
-  if (mode === "web") {
+  if (mode !== "api") {
     params.set("fast", "true");
-    return params.toString();
   }
+
+  if (mode === "web") return params.toString();
 
   params.set("apiProviders", serialize(settings.apiProviders));
   params.set("applyhomeTypes", serialize(settings.applyhomeTypes));
