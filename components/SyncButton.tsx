@@ -28,6 +28,7 @@ interface Option {
 const SETTINGS_KEY = "bunyangSyncSettings";
 const DEFAULT_PER_PAGE = "100";
 const DEFAULT_MAX_PAGES = "5";
+const SYNC_TIMEOUT_MS = 120000;
 
 const apiProviderOptions: Option[] = [
   { value: "applyhome_api", label: "청약홈 API" },
@@ -117,9 +118,7 @@ function buildSyncQuery(mode: SyncMode, settings: SyncSettings) {
     maxPages: DEFAULT_MAX_PAGES,
   });
 
-  if (mode !== "api") {
-    params.set("fast", "true");
-  }
+  params.set("fast", "true");
 
   if (mode === "web") return params.toString();
 
@@ -203,9 +202,15 @@ export function SyncButton() {
     localStorage.setItem("lastSyncStart", startTimeStr);
     localStorage.removeItem("lastSyncEnd");
 
+    let timeoutId: number | undefined;
+
     try {
       const query = buildSyncQuery(mode, settings);
-      const response = await fetch(`/api/cron/sync?${query}`, { method: "GET" });
+      const controller = new AbortController();
+      timeoutId = window.setTimeout(() => controller.abort(), SYNC_TIMEOUT_MS);
+      const response = await fetch(`/api/cron/sync?${query}`, { method: "GET", signal: controller.signal });
+      window.clearTimeout(timeoutId);
+      timeoutId = undefined;
       const endTimeStr = formatKst();
       setEndText(endTimeStr);
       localStorage.setItem("lastSyncEnd", endTimeStr);
@@ -251,12 +256,19 @@ export function SyncButton() {
       router.refresh();
     } catch (error) {
       console.error(error);
-      alert("네트워크 오류가 발생했습니다.");
+      const message =
+        error instanceof DOMException && error.name === "AbortError"
+          ? "API 수집 요청이 2분을 넘겨 중단되었습니다. 선택한 API/카테고리를 줄여 다시 시도해 주세요."
+          : "네트워크 오류가 발생했습니다.";
+      alert(message);
 
       const failText = `${formatKst()} (실패)`;
       setEndText(failText);
       localStorage.setItem("lastSyncEnd", failText);
     } finally {
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
       setRunningMode(null);
     }
   };

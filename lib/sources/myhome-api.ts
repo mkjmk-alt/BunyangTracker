@@ -1,5 +1,8 @@
 import { SourceProvider, FetchOptions, RateLimitPolicy } from "./provider";
 import { MyHomeAnnouncement, MyHomeAnnouncementSchema, NormalizedAnnouncement } from "../validators";
+import { createTimeoutSignal } from "./fetch-timeout";
+
+const API_FETCH_TIMEOUT_MS = 12000;
 
 const extractCanonicalId = (url: string | null | undefined, instt: string | null | undefined, defaultId: string): string => {
   if (!url) return defaultId;
@@ -65,7 +68,7 @@ export class MyHomeApiProvider implements SourceProvider<MyHomeAnnouncement> {
         const url = `${this.baseUri}?${params.toString()}`;
         console.log(`[MyHome] Request URL: ${url.replace(apiKey.trim(), "HIDDEN_KEY")}`);
 
-        const response = await fetch(url);
+        const response = await fetch(url, { signal: createTimeoutSignal(API_FETCH_TIMEOUT_MS) });
         const text = await response.text();
 
         let data;

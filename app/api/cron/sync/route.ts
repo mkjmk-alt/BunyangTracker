@@ -29,9 +29,9 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const perPage = parseInt(searchParams.get("perPage") || "100");
   const maxPages = parseInt(searchParams.get("maxPages") || "5");
-  const fast = searchParams.get("fast") === "true";
   const modeParam = searchParams.get("mode") || "all";
   const mode = ["api", "web", "all"].includes(modeParam) ? modeParam : "all";
+  const fast = searchParams.has("fast") ? searchParams.get("fast") === "true" : mode === "api";
   const apiProviders = parseListParam(searchParams, "apiProviders");
   const applyhomeTypes = parseListParam(searchParams, "applyhomeTypes");
   const lhCategories = parseListParam(searchParams, "lhCategories");

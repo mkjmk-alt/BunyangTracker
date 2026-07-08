@@ -2,6 +2,9 @@ import { SourceProvider, FetchOptions, RateLimitPolicy } from "./provider";
 import { LHAnnouncement, LHAnnouncementSchema, NormalizedAnnouncement } from "../validators";
 import { format, subYears } from "date-fns";
 import { normalizeDate } from "../normalize/announcement";
+import { createTimeoutSignal } from "./fetch-timeout";
+
+const API_FETCH_TIMEOUT_MS = 12000;
 
 export class LHApiProvider implements SourceProvider<LHAnnouncement> {
   providerId = "lh_api";
@@ -45,7 +48,7 @@ export class LHApiProvider implements SourceProvider<LHAnnouncement> {
           const url = `${this.baseUri}?${params.toString()}`;
           console.log(`[LH] Fetching category ${cat} page ${currentPage} from ${startDate} to ${endDate}...`);
           
-          const response = await fetch(url);
+          const response = await fetch(url, { signal: createTimeoutSignal(API_FETCH_TIMEOUT_MS) });
           const text = await response.text();
           
           let data;

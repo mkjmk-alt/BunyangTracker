@@ -2,6 +2,9 @@ import { SourceProvider, FetchOptions, RateLimitPolicy } from "./provider";
 import { ApplyHomeApt, ApplyHomeAptSchema, NormalizedAnnouncement } from "../validators";
 import { format } from "date-fns";
 import { normalizeDate } from "../normalize/announcement";
+import { createTimeoutSignal } from "./fetch-timeout";
+
+const API_FETCH_TIMEOUT_MS = 12000;
 
 const ENDPOINTS = {
   APT: "getAPTLttotPblancDetail",
@@ -57,7 +60,7 @@ export class ApplyHomeApiProvider implements SourceProvider<ApplyHomeApt> {
           const url = `${this.baseUri}/${operation}?${params.toString()}`;
           console.log(`[ApplyHome] Fetching ${type} page ${currentPage}...`);
           
-          const response = await fetch(url);
+          const response = await fetch(url, { signal: createTimeoutSignal(API_FETCH_TIMEOUT_MS) });
           const text = await response.text();
           const data = JSON.parse(text);
           const pageItems = (data.data || []).map((item: any) => ({ ...item, _type: type }));
@@ -111,7 +114,7 @@ export class ApplyHomeApiProvider implements SourceProvider<ApplyHomeApt> {
         });
 
         const url = `${this.baseUri}/${operation}?${params.toString()}`;
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: createTimeoutSignal(API_FETCH_TIMEOUT_MS) });
         if (!res.ok) continue;
 
         const text = await res.text();
@@ -149,7 +152,7 @@ export class ApplyHomeApiProvider implements SourceProvider<ApplyHomeApt> {
       });
 
       const url = `${this.baseUri}/${operation}?${params.toString()}`;
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: createTimeoutSignal(API_FETCH_TIMEOUT_MS) });
       const data = await response.json();
       const items = data.data || [];
 
@@ -186,7 +189,7 @@ export class ApplyHomeApiProvider implements SourceProvider<ApplyHomeApt> {
     }
 
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: createTimeoutSignal(API_FETCH_TIMEOUT_MS) });
       const text = await response.text();
       
       const regexes = [
