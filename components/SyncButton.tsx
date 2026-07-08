@@ -52,13 +52,15 @@ const lhCategoryOptions: Option[] = [
 ];
 
 const myhomeKeywordOptions: Option[] = [
+  { value: "10년임대", label: "10년임대" },
+  { value: "50년임대", label: "50년임대" },
+  { value: "6년임대", label: "6년임대" },
   { value: "국민임대", label: "국민임대" },
   { value: "행복주택", label: "행복주택" },
   { value: "영구임대", label: "영구임대" },
-  { value: "공공임대", label: "공공임대" },
   { value: "매입임대", label: "매입임대" },
   { value: "전세임대", label: "전세임대" },
-  { value: "분양", label: "분양 포함" },
+  { value: "통합공공임대", label: "통합공공임대" },
 ];
 
 const defaultSettings: SyncSettings = {
@@ -342,9 +344,9 @@ export function SyncButton() {
             </section>
 
             <section>
-              <h3 className="mb-1 text-xs font-bold text-muted-foreground">마이홈 응답 필터</h3>
+              <h3 className="mb-1 text-xs font-bold text-muted-foreground">마이홈 공급유형</h3>
               <p className="mb-2 text-xs text-muted-foreground">
-                마이홈 목록 API는 현재 공급유형 요청 파라미터가 동작하지 않아 전체 요청 후 응답에서 필터링합니다.
+                마이홈 목록 API는 공급유형 요청 파라미터가 동작하지 않아 전체 요청 후 공급유형 응답값으로 필터링합니다.
               </p>
               {renderOptions("myhomeKeywords", myhomeKeywordOptions)}
             </section>

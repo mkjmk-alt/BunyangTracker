@@ -48,7 +48,7 @@ export class MyHomeApiProvider implements SourceProvider<MyHomeAnnouncement> {
     const apiKey = process.env.PUBLIC_DATA_API_KEY || "";
     const { page = 1, perPage = 80 } = options;
     const maxPages = 10;
-    const keywords = options.myhomeKeywords?.filter(Boolean) || [];
+    const supplyTypes = options.myhomeKeywords?.filter(Boolean) || [];
 
     console.log(`[MyHome] Fetching public rental housing announcements (Page ${page}, perPage ${perPage})...`);
 
@@ -91,12 +91,9 @@ export class MyHomeApiProvider implements SourceProvider<MyHomeAnnouncement> {
         if (pageItems.length < perPage || fetchedAllKnownItems) break;
       }
 
-      const filteredItems = keywords.length
+      const filteredItems = supplyTypes.length
         ? allItems.filter((item: any) => {
-            const haystack = [item.suplyTyNm, item.pblancNm, item.suplyInsttNm]
-              .filter(Boolean)
-              .join(" ");
-            return keywords.some((keyword) => haystack.includes(keyword));
+            return supplyTypes.includes(item.suplyTyNm);
           })
         : allItems;
 
