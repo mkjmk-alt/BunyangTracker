@@ -13,30 +13,123 @@ interface SyncProviderResult {
   error?: string | null;
 }
 
-const syncModes: Record<SyncMode, { label: string; runningLabel: string; query: string; className: string }> = {
+interface SyncSettings {
+  apiProviders: string[];
+  applyhomeTypes: string[];
+  lhCategories: string[];
+  myhomeKeywords: string[];
+}
+
+interface Option {
+  value: string;
+  label: string;
+}
+
+const SETTINGS_KEY = "bunyangSyncSettings";
+
+const apiProviderOptions: Option[] = [
+  { value: "applyhome_api", label: "청약홈 API" },
+  { value: "lh_api", label: "LH API" },
+  { value: "myhome_api", label: "마이홈 API" },
+];
+
+const applyhomeTypeOptions: Option[] = [
+  { value: "APT", label: "아파트" },
+  { value: "OFCTL_URBTY", label: "오피스텔/도시형" },
+  { value: "REMAINDER", label: "무순위/잔여세대" },
+  { value: "PUBLIC_RENT", label: "공공지원 민간임대" },
+  { value: "OPTIONAL", label: "임의공급" },
+];
+
+const lhCategoryOptions: Option[] = [
+  { value: "05", label: "분양주택" },
+  { value: "06", label: "임대주택" },
+  { value: "13", label: "주거복지/임대" },
+  { value: "22", label: "상가" },
+  { value: "31", label: "임대상가" },
+  { value: "39", label: "신혼희망타운/분양" },
+  { value: "54", label: "뉴홈/이익공유형" },
+];
+
+const myhomeKeywordOptions: Option[] = [
+  { value: "국민임대", label: "국민임대" },
+  { value: "행복주택", label: "행복주택" },
+  { value: "영구임대", label: "영구임대" },
+  { value: "공공임대", label: "공공임대" },
+  { value: "매입임대", label: "매입임대" },
+  { value: "전세임대", label: "전세임대" },
+  { value: "분양", label: "분양 포함" },
+];
+
+const defaultSettings: SyncSettings = {
+  apiProviders: apiProviderOptions.map((option) => option.value),
+  applyhomeTypes: applyhomeTypeOptions.map((option) => option.value),
+  lhCategories: lhCategoryOptions.map((option) => option.value),
+  myhomeKeywords: myhomeKeywordOptions.map((option) => option.value),
+};
+
+const syncModes: Record<SyncMode, { label: string; runningLabel: string; className: string }> = {
   api: {
     label: "API 수집",
     runningLabel: "API 수집 중...",
-    query: "mode=api&perPage=160",
     className: "bg-sky-600 text-white hover:bg-sky-500",
   },
   web: {
     label: "크롤링 수집",
     runningLabel: "크롤링 중...",
-    query: "mode=web&perPage=160&fast=true",
     className: "bg-emerald-600 text-white hover:bg-emerald-500",
   },
   all: {
     label: "전체 수집",
     runningLabel: "전체 수집 중...",
-    query: "mode=all&perPage=160",
     className: "bg-primary text-primary-foreground hover:opacity-90",
   },
 };
 
+function loadSettings(): SyncSettings {
+  if (typeof window === "undefined") return defaultSettings;
+
+  try {
+    const stored = window.localStorage.getItem(SETTINGS_KEY);
+    if (!stored) return defaultSettings;
+
+    const parsed = JSON.parse(stored) as Partial<SyncSettings>;
+    return {
+      apiProviders: parsed.apiProviders?.length ? parsed.apiProviders : defaultSettings.apiProviders,
+      applyhomeTypes: parsed.applyhomeTypes?.length ? parsed.applyhomeTypes : defaultSettings.applyhomeTypes,
+      lhCategories: parsed.lhCategories?.length ? parsed.lhCategories : defaultSettings.lhCategories,
+      myhomeKeywords: parsed.myhomeKeywords?.length ? parsed.myhomeKeywords : defaultSettings.myhomeKeywords,
+    };
+  } catch {
+    return defaultSettings;
+  }
+}
+
+function buildSyncQuery(mode: SyncMode, settings: SyncSettings) {
+  const serialize = (values: string[]) => (values.length > 0 ? values.join(",") : "__none");
+  const params = new URLSearchParams({
+    mode,
+    perPage: "160",
+  });
+
+  if (mode === "web") {
+    params.set("fast", "true");
+    return params.toString();
+  }
+
+  params.set("apiProviders", serialize(settings.apiProviders));
+  params.set("applyhomeTypes", serialize(settings.applyhomeTypes));
+  params.set("lhCategories", serialize(settings.lhCategories));
+  params.set("myhomeKeywords", serialize(settings.myhomeKeywords));
+
+  return params.toString();
+}
+
 export function SyncButton() {
   const [runningMode, setRunningMode] = useState<SyncMode | null>(null);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState<SyncSettings>(loadSettings);
   const [startText, setStartText] = useState<string | null>(null);
   const [endText, setEndText] = useState<string | null>(null);
   const router = useRouter();
@@ -44,6 +137,25 @@ export function SyncButton() {
   const isSyncing = runningMode !== null;
 
   const formatKst = () => new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" });
+
+  const persistSettings = (next: SyncSettings) => {
+    setSettings(next);
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+  };
+
+  const toggleSetting = (key: keyof SyncSettings, value: string) => {
+    const values = settings[key];
+    const nextValues = values.includes(value)
+      ? values.filter((item) => item !== value)
+      : [...values, value];
+
+    persistSettings({
+      ...settings,
+      [key]: nextValues,
+    });
+  };
+
+  const resetSettings = () => persistSettings(defaultSettings);
 
   const handleRestoreBookmarks = async () => {
     setIsRestoring(true);
@@ -84,7 +196,8 @@ export function SyncButton() {
     localStorage.removeItem("lastSyncEnd");
 
     try {
-      const response = await fetch(`/api/cron/sync?${config.query}`, { method: "GET" });
+      const query = buildSyncQuery(mode, settings);
+      const response = await fetch(`/api/cron/sync?${query}`, { method: "GET" });
       const endTimeStr = formatKst();
       setEndText(endTimeStr);
       localStorage.setItem("lastSyncEnd", endTimeStr);
@@ -140,9 +253,35 @@ export function SyncButton() {
     }
   };
 
+  const renderOptions = (key: keyof SyncSettings, options: Option[]) => (
+    <div className="grid gap-2 sm:grid-cols-2">
+      {options.map((option) => (
+        <label
+          key={option.value}
+          className="flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm"
+        >
+          <input
+            type="checkbox"
+            checked={settings[key].includes(option.value)}
+            onChange={() => toggleSetting(key, option.value)}
+            className="accent-primary"
+          />
+          <span>{option.label}</span>
+        </label>
+      ))}
+    </div>
+  );
+
   return (
     <div className="flex flex-col items-end gap-2">
       <div className="flex flex-wrap justify-end gap-2">
+        <button
+          onClick={() => setSettingsOpen((open) => !open)}
+          disabled={isSyncing || isRestoring}
+          className="rounded-lg border border-input bg-background px-4 py-2 font-semibold text-foreground shadow-sm transition-all hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+        >
+          수집 설정
+        </button>
         <button
           onClick={handleRestoreBookmarks}
           disabled={isSyncing || isRestoring}
@@ -174,6 +313,39 @@ export function SyncButton() {
           );
         })}
       </div>
+
+      {settingsOpen && (
+        <div className="w-full max-w-2xl rounded-lg border bg-card p-4 text-left shadow-lg">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-bold">API 수집 설정</h2>
+            <button onClick={resetSettings} className="text-xs font-semibold text-primary hover:underline">
+              기본값 복원
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <section>
+              <h3 className="mb-2 text-xs font-bold text-muted-foreground">실행할 공식 API</h3>
+              {renderOptions("apiProviders", apiProviderOptions)}
+            </section>
+
+            <section>
+              <h3 className="mb-2 text-xs font-bold text-muted-foreground">청약홈 API 유형</h3>
+              {renderOptions("applyhomeTypes", applyhomeTypeOptions)}
+            </section>
+
+            <section>
+              <h3 className="mb-2 text-xs font-bold text-muted-foreground">LH API 대분류</h3>
+              {renderOptions("lhCategories", lhCategoryOptions)}
+            </section>
+
+            <section>
+              <h3 className="mb-2 text-xs font-bold text-muted-foreground">마이홈 API 키워드</h3>
+              {renderOptions("myhomeKeywords", myhomeKeywordOptions)}
+            </section>
+          </div>
+        </div>
+      )}
 
       {(startText || isSyncing) && (
         <div className="text-[11px] text-muted-foreground bg-accent/20 px-2.5 py-1.5 rounded-md border border-accent/50 flex flex-col gap-0.5 text-right">

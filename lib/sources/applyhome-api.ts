@@ -27,6 +27,9 @@ export class ApplyHomeApiProvider implements SourceProvider<ApplyHomeApt> {
     const apiKey = process.env.PUBLIC_DATA_API_KEY || "";
     const { page = 1, perPage = 20 } = options;
     const maxPages = 10;
+    const selectedTypes = options.applyhomeTypes?.length
+      ? new Set(options.applyhomeTypes)
+      : null;
     
     console.log(`[ApplyHome] Starting multi-type fetch (Page ${page}, perPage ${perPage})...`);
 
@@ -34,7 +37,8 @@ export class ApplyHomeApiProvider implements SourceProvider<ApplyHomeApt> {
     oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
     const dateStr = oneYearAgo.toISOString().split('T')[0];
 
-    const promises = Object.entries(ENDPOINTS).map(async ([type, operation]) => {
+    const endpointEntries = Object.entries(ENDPOINTS).filter(([type]) => !selectedTypes || selectedTypes.has(type));
+    const promises = endpointEntries.map(async ([type, operation]) => {
       try {
         const allItems: any[] = [];
 

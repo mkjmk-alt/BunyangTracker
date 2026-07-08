@@ -17,6 +17,13 @@ import { randomUUID } from "crypto";
 
 export const dynamic = "force-dynamic";
 
+function parseListParam(searchParams: URLSearchParams, key: string): string[] {
+  return (searchParams.get(key) || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
 export async function GET(request: Request) {
   const startTime = Date.now();
   const { searchParams } = new URL(request.url);
@@ -24,6 +31,10 @@ export async function GET(request: Request) {
   const fast = searchParams.get("fast") === "true";
   const modeParam = searchParams.get("mode") || "all";
   const mode = ["api", "web", "all"].includes(modeParam) ? modeParam : "all";
+  const apiProviders = parseListParam(searchParams, "apiProviders");
+  const applyhomeTypes = parseListParam(searchParams, "applyhomeTypes");
+  const lhCategories = parseListParam(searchParams, "lhCategories");
+  const myhomeKeywords = parseListParam(searchParams, "myhomeKeywords");
 
   try {
     // ─── 1. Register providers (sequential) ───────────────────────
@@ -41,7 +52,13 @@ export async function GET(request: Request) {
       { instance: new IHWebProvider(), label: "iH 인천도시공사 실시간 웹 (분양/임대)", mode: "web" },
       { instance: new BMCWebProvider(), label: "BMC 부산도시공사 실시간 웹 (분양/임대)", mode: "web" },
     ];
-    const providerConfigs = allProviderConfigs.filter((provider) => mode === "all" || provider.mode === mode);
+    const providerConfigs = allProviderConfigs.filter((provider) => {
+      if (mode !== "all" && provider.mode !== mode) return false;
+      if (provider.mode === "api" && apiProviders.length > 0) {
+        return apiProviders.includes(provider.instance.providerId);
+      }
+      return true;
+    });
 
     const providerIds: Record<string, string> = {};
     const providerSyncRunIds: Record<string, string> = {};
@@ -76,7 +93,12 @@ export async function GET(request: Request) {
     for (const { instance, label } of providerConfigs) {
       try {
         console.log(`[FastSync] Starting fetch for ${instance.providerId} (${label})...`);
-        const items = await instance.fetchIndex({ perPage });
+        const items = await instance.fetchIndex({
+          perPage,
+          applyhomeTypes,
+          lhCategories,
+          myhomeKeywords,
+        });
         console.log(`[FastSync] Finished fetch for ${instance.providerId}: ${items.length} items`);
         fetchResults.push({ provider: instance, label, items, status: "success", error: null });
       } catch (e: any) {

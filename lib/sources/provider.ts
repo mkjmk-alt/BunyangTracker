@@ -4,6 +4,9 @@ export interface FetchOptions {
   page?: number;
   perPage?: number;
   backfillDays?: number;
+  applyhomeTypes?: string[];
+  lhCategories?: string[];
+  myhomeKeywords?: string[];
 }
 
 export interface RateLimitPolicy {
