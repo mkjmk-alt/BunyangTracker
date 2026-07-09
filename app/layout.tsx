@@ -32,6 +32,7 @@ export default function RootLayout({
                 <Link href="/calendar" className="transition-colors hover:text-primary whitespace-nowrap">캘린더</Link>
                 <Link href="/changes" className="transition-colors hover:text-primary whitespace-nowrap">변경이력</Link>
                 <Link href="/admin/sync" className="transition-colors hover:text-primary whitespace-nowrap">수집관리</Link>
+                <Link href="/admin/diagnostics" className="transition-colors hover:text-primary whitespace-nowrap">수집진단</Link>
               </nav>
             </div>
           </header>
