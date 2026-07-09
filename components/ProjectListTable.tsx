@@ -60,6 +60,36 @@ interface Props {
   lastSyncStartedAt: number;
 }
 
+const FILTER_STORAGE_KEY = "bunyangProjectListFilters";
+
+interface StoredFilters {
+  regions?: string[];
+  types?: string[];
+  statuses?: string[];
+  categories?: string[];
+  showHiddenOnly?: boolean;
+}
+
+function readStoredFilters(): StoredFilters | null {
+  try {
+    const stored = localStorage.getItem(FILTER_STORAGE_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function restoreSelection(savedValues: string[] | undefined, availableValues: string[], fallbackValues: string[]) {
+  if (!savedValues) return new Set(fallbackValues);
+  if (savedValues.length === 0) return new Set<string>();
+
+  const available = new Set(availableValues);
+  const restored = savedValues.filter((value) => available.has(value));
+  return new Set(restored.length > 0 ? restored : fallbackValues);
+}
+
 export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt }: Props) {
   const [projects, setProjects] = useState<SerializedProjectAnnouncement[]>(initialProjects);
 
@@ -73,6 +103,7 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
   const [selectedTypes, setSelectedTypes] = useState<Set<string>>(new Set());
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
+  const [hasLoadedFilters, setHasLoadedFilters] = useState(false);
 
   // Hidden/Restore States
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
@@ -153,6 +184,37 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
       setSelectedStatuses(new Set(filteredDefault));
     }
   }, [projects]);
+
+  useEffect(() => {
+    const stored = readStoredFilters();
+
+    if (!stored) {
+      setHasLoadedFilters(true);
+      return;
+    }
+
+    setSelectedRegions(restoreSelection(stored.regions, allRegions, allRegions));
+    setSelectedTypes(restoreSelection(stored.types, allTypes, allTypes));
+    setSelectedStatuses(restoreSelection(stored.statuses, allStatuses, allStatuses));
+    setSelectedCategories(restoreSelection(stored.categories, allCategories, allCategories));
+    setShowHiddenOnly(Boolean(stored.showHiddenOnly));
+    setHasLoadedFilters(true);
+  }, [projects]);
+
+  useEffect(() => {
+    if (!hasLoadedFilters) return;
+
+    localStorage.setItem(
+      FILTER_STORAGE_KEY,
+      JSON.stringify({
+        regions: Array.from(selectedRegions),
+        types: Array.from(selectedTypes),
+        statuses: Array.from(selectedStatuses),
+        categories: Array.from(selectedCategories),
+        showHiddenOnly,
+      })
+    );
+  }, [hasLoadedFilters, selectedRegions, selectedTypes, selectedStatuses, selectedCategories, showHiddenOnly]);
 
   // Load hidden IDs from localStorage on mount
   useEffect(() => {
@@ -323,6 +385,7 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
               setSelectedTypes(new Set(allTypes));
               setSelectedStatuses(new Set(allStatuses));
               setSelectedCategories(new Set(allCategories));
+              setShowHiddenOnly(false);
             }}
             className="text-primary hover:underline font-semibold"
           >
