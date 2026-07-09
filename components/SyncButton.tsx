@@ -28,7 +28,7 @@ interface Option {
 const SETTINGS_KEY = "bunyangSyncSettings";
 const DEFAULT_PER_PAGE = "30";
 const DEFAULT_MAX_PAGES = "1";
-const SYNC_TIMEOUT_MS = 240000;
+const SYNC_TIMEOUT_MS = 600000;
 
 const apiProviderOptions: Option[] = [
   { value: "applyhome_api", label: "청약홈 API" },
@@ -258,7 +258,7 @@ export function SyncButton() {
       console.error(error);
       const message =
         error instanceof DOMException && error.name === "AbortError"
-          ? "수집 요청이 4분을 넘겨 중단되었습니다. 선택한 API/카테고리를 줄여 다시 시도해 주세요."
+          ? "수집 요청이 10분을 넘겨 중단되었습니다. 선택한 API/카테고리를 줄여 다시 시도해 주세요."
           : "네트워크 오류가 발생했습니다.";
       alert(message);
 
