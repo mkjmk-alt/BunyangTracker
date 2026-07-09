@@ -128,6 +128,7 @@ export const SHAnnouncementSchema = z.object({
   domain: z.string(),
   applyStartDate: z.string().optional().nullable(),
   applyEndDate: z.string().optional().nullable(),
+  winnerAnnounceDate: z.string().optional().nullable(),
 });
 
 export type SHAnnouncement = z.infer<typeof SHAnnouncementSchema>;
