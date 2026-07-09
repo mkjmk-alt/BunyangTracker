@@ -110,6 +110,15 @@ export function getSourceBadge(key: string | null | undefined, metadata?: unknow
     };
   }
 
+  const hasShWeb = keys.some((sourceKey) => sourceKey.startsWith("sh_web"));
+  const hasMyHomeApi = keys.some((sourceKey) => sourceKey.startsWith("myhome_api"));
+  if (hasShWeb && hasMyHomeApi) {
+    return {
+      label: "[API+크롤링] SH",
+      className: "bg-violet-100 text-violet-700 dark:bg-violet-950/30 dark:text-violet-400 border border-violet-200/50 dark:border-violet-900/30"
+    };
+  }
+
   key = keys[0];
   if (key.startsWith("applyhome_web")) {
     return { 
@@ -168,7 +177,7 @@ export function getSourceBadge(key: string | null | undefined, metadata?: unknow
   return null;
 }
 
-export function isHousingRecruitment(title: string, providerName?: string): boolean {
+export function isHousingRecruitment(): boolean {
   // ponytail: disabled due to too many false positives and missing upcoming lists. Keep all.
   return true;
 }

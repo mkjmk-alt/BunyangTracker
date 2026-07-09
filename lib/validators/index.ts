@@ -156,6 +156,7 @@ export const MyHomeAnnouncementSchema = z.object({
   rcritPblancDe: z.string().optional().nullable(),
   beginDe: z.string().optional().nullable(),
   endDe: z.string().optional().nullable(),
+  przwnerPresnatnDe: z.string().optional().nullable(),
   suplyTyNm: z.string().optional().nullable(),
   suplyInsttNm: z.string().optional().nullable(),
   sttusNm: z.string().optional().nullable(),

@@ -4,44 +4,99 @@ import { createTimeoutSignal } from "./fetch-timeout";
 
 const API_FETCH_TIMEOUT_MS = 12000;
 
-const extractCanonicalId = (url: string | null | undefined, instt: string | null | undefined, defaultId: string): string => {
-  if (!url) return defaultId;
+type JsonRecord = Record<string, unknown>;
 
+function isRecord(value: unknown): value is JsonRecord {
+  return typeof value === "object" && value !== null;
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function getNestedRecord(record: JsonRecord, key: string): JsonRecord | null {
+  const value = record[key];
+  return isRecord(value) ? value : null;
+}
+
+function getResponseItems(data: unknown): unknown[] {
+  if (!isRecord(data)) return [];
+
+  const response = getNestedRecord(data, "response");
+  const body = response ? getNestedRecord(response, "body") : null;
+  if (!body) return [];
+
+  const itemsWrapper = getNestedRecord(body, "items");
+  const rawItems = itemsWrapper?.item ?? body.item;
+  if (!rawItems) return [];
+
+  return Array.isArray(rawItems) ? rawItems : [rawItems];
+}
+
+function getTotalCount(data: unknown): number {
+  if (!isRecord(data)) return 0;
+
+  const response = getNestedRecord(data, "response");
+  const body = response ? getNestedRecord(response, "body") : null;
+  if (!body) return 0;
+
+  return Number(body.totalCount || 0);
+}
+
+function cleanDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+
+  const cleaned = value.replace(/[^\d]/g, "");
+  if (cleaned.length === 8) {
+    return `${cleaned.substring(0, 4)}-${cleaned.substring(4, 6)}-${cleaned.substring(6, 8)}`;
+  }
+
+  return value;
+}
+
+function normalizeInstitutionName(instt: string | null | undefined): string {
+  if (!instt) return "공공임대";
+
+  if (instt.includes("한국토지주택") || instt.includes("LH")) return "LH(한국토지주택공사)";
+  if (instt.includes("서울주택") || instt.includes("SH")) return "SH(서울주택도시공사)";
+  if (instt.includes("경기주택") || instt.includes("GH")) return "GH(경기주택도시공사)";
+  if (instt.includes("인천도시") || instt.includes("iH")) return "iH(인천도시공사)";
+  if (instt.includes("부산도시") || instt.includes("BMC")) return "BMC(부산도시공사)";
+
+  return instt;
+}
+
+function extractCanonicalId(url: string | null | undefined, instt: string | null | undefined, defaultId: string): string {
   const insttLower = (instt || "").toLowerCase();
-  const urlLower = url.toLowerCase();
+  const urlLower = (url || "").toLowerCase();
 
-  // LH (한국토지주택공사)
-  if (insttLower.includes("lh") || insttLower.includes("토지주택") || urlLower.includes("lh.or.kr")) {
-    const match = url.match(/[?&]panId=([^&]+)/);
+  if (insttLower.includes("lh") || insttLower.includes("한국토지주택") || urlLower.includes("lh.or.kr")) {
+    const match = url?.match(/[?&]panId=([^&]+)/);
     if (match) return match[1];
   }
 
-  // SH (서울주택도시공사)
   if (insttLower.includes("sh") || insttLower.includes("서울주택") || urlLower.includes("i-sh.co.kr")) {
-    const match = url.match(/[?&]seq=([^&]+)/);
+    const match = url?.match(/[?&]seq=([^&]+)/);
     if (match) return `sh-${match[1]}`;
   }
 
-  // GH (경기주택도시공사)
   if (insttLower.includes("gh") || insttLower.includes("경기주택") || urlLower.includes("gh.or.kr")) {
-    const match = url.match(/[?&]pbancNo=([^&]+)/) || url.match(/[?&]bizCd=([^&]+)/);
+    const match = url?.match(/[?&]pbancNo=([^&]+)/) || url?.match(/[?&]bizCd=([^&]+)/);
     if (match) return `gh-${match[1]}`;
   }
 
-  // iH (인천도시공사)
   if (insttLower.includes("ih") || insttLower.includes("인천도시") || urlLower.includes("ih.co.kr")) {
-    const match = url.match(/[?&]seq=([^&]+)/) || url.match(/[?&]msg_seq=([^&]+)/) || url.match(/[?&]dataSid=([^&]+)/);
+    const match = url?.match(/[?&]seq=([^&]+)/) || url?.match(/[?&]msg_seq=([^&]+)/) || url?.match(/[?&]dataSid=([^&]+)/);
     if (match) return `ih-${match[1]}`;
   }
 
-  // BMC (부산도시공사)
   if (insttLower.includes("bmc") || insttLower.includes("부산도시") || urlLower.includes("bmc.busan.kr")) {
-    const match = url.match(/[?&]dataSid=([^&]+)/);
+    const match = url?.match(/[?&]dataSid=([^&]+)/);
     if (match) return `bmc-${match[1]}`;
   }
 
   return defaultId;
-};
+}
 
 export class MyHomeApiProvider implements SourceProvider<MyHomeAnnouncement> {
   providerId = "myhome_api";
@@ -55,14 +110,14 @@ export class MyHomeApiProvider implements SourceProvider<MyHomeAnnouncement> {
     console.log(`[MyHome] Fetching public rental housing announcements (Page ${page}, perPage ${perPage})...`);
 
     try {
-      const allItems: any[] = [];
+      const allItems: unknown[] = [];
 
       for (let currentPage = page; currentPage < page + maxPages; currentPage++) {
         const params = new URLSearchParams({
           serviceKey: apiKey.trim(),
           numOfRows: perPage.toString(),
           pageNo: currentPage.toString(),
-          _type: "json"
+          _type: "json",
         });
 
         const url = `${this.baseUri}?${params.toString()}`;
@@ -71,81 +126,60 @@ export class MyHomeApiProvider implements SourceProvider<MyHomeAnnouncement> {
         const response = await fetch(url, { signal: createTimeoutSignal(API_FETCH_TIMEOUT_MS) });
         const text = await response.text();
 
-        let data;
+        let data: unknown;
         try {
           data = JSON.parse(text);
-        } catch (e) {
-          console.error(`[MyHome] Failed to parse JSON response.`);
+        } catch {
+          console.error("[MyHome] Failed to parse JSON response.");
           console.error(`[MyHome] Raw response: ${text.substring(0, 300)}`);
           break;
         }
 
-        // Check standard public portal response format: response.body.items.item or response.body.item
-        const rawItems = data?.response?.body?.items?.item || data?.response?.body?.item;
-        if (!rawItems) break;
+        const pageItems = getResponseItems(data);
+        if (pageItems.length === 0) break;
 
-        // Handle both single object and array responses (data.go.kr standard gotcha)
-        const pageItems = Array.isArray(rawItems) ? rawItems : [rawItems];
         allItems.push(...pageItems);
 
-        const totalCount = Number(data?.response?.body?.totalCount || 0);
+        const totalCount = getTotalCount(data);
         const fetchedAllKnownItems = totalCount > 0 && allItems.length >= totalCount;
         if (pageItems.length < perPage || fetchedAllKnownItems) break;
       }
 
       const filteredItems = supplyTypes.length
-        ? allItems.filter((item: any) => {
-            return supplyTypes.includes(item.suplyTyNm);
+        ? allItems.filter((item) => {
+            const suplyTyNm = isRecord(item) ? asString(item.suplyTyNm) : null;
+            return suplyTyNm ? supplyTypes.includes(suplyTyNm) : false;
           })
         : allItems;
 
       console.log(`[MyHome] Successfully fetched ${filteredItems.length} items.`);
 
-      return filteredItems.map((item: any) => {
-        try {
-          return MyHomeAnnouncementSchema.parse(item);
-        } catch (e: any) {
-          console.error(`[MyHome] Validation failed for item:`, e.message);
-          return null;
-        }
-      }).filter(Boolean) as MyHomeAnnouncement[];
-
-    } catch (error: any) {
-      console.error(`[MyHome] Fetch error:`, error.message);
+      return filteredItems
+        .map((item) => {
+          try {
+            return MyHomeAnnouncementSchema.parse(item);
+          } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : String(e);
+            console.error("[MyHome] Validation failed for item:", message);
+            return null;
+          }
+        })
+        .filter(Boolean) as MyHomeAnnouncement[];
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[MyHome] Fetch error:", message);
       return [];
     }
   }
 
-  async fetchDetail(id: string): Promise<MyHomeAnnouncement> {
+  async fetchDetail(): Promise<MyHomeAnnouncement> {
     throw new Error("Method not implemented.");
   }
 
   normalize(raw: MyHomeAnnouncement): NormalizedAnnouncement {
-    const cleanDate = (d: string | null | undefined) => {
-      if (!d) return null;
-      // Extract numbers only to convert YYYY.MM.DD or YYYYMMDD to YYYY-MM-DD
-      const cleaned = d.replace(/[^\d]/g, '');
-      if (cleaned.length === 8) {
-        return `${cleaned.substring(0, 4)}-${cleaned.substring(4, 6)}-${cleaned.substring(6, 8)}`;
-      }
-      return d;
-    };
-
-    const cleanInstt = (instt: string | null | undefined) => {
-      if (!instt) return "공공임대";
-      // Clean and normalize institution names
-      if (instt.includes("토지주택") || instt.includes("LH")) return "LH(한국토지주택공사)";
-      if (instt.includes("서울주택") || instt.includes("SH")) return "SH(서울주택도시공사)";
-      if (instt.includes("경기주택") || instt.includes("GH")) return "GH(경기주택도시공사)";
-      if (instt.includes("인천도시") || instt.includes("iH")) return "iH(인천도시공사)";
-      return instt;
-    };
-
     const pblancId = raw.pblancId;
-    const announceUrl = raw.pcUrl || raw.url || null;
-    const insttName = cleanInstt(raw.suplyInsttNm);
-    
-    // Extract canonical ID prioritizing the direct link (url) over the portal detail link (pcUrl)
+    const announceUrl = raw.url || raw.pcUrl || null;
+    const insttName = normalizeInstitutionName(raw.suplyInsttNm);
     const canonicalId = extractCanonicalId(raw.url || raw.pcUrl || null, insttName, pblancId);
 
     const slug = `myhome-${raw.pblancNm}-${canonicalId}`
@@ -157,6 +191,7 @@ export class MyHomeApiProvider implements SourceProvider<MyHomeAnnouncement> {
     const announceDate = cleanDate(raw.rcritPblancDe);
     const applyStartDate = cleanDate(raw.beginDe);
     const applyEndDate = cleanDate(raw.endDe);
+    const winnerAnnounceDate = cleanDate(raw.przwnerPresnatnDe);
 
     return {
       housingMgmtNo: canonicalId,
@@ -168,7 +203,7 @@ export class MyHomeApiProvider implements SourceProvider<MyHomeAnnouncement> {
       announceDate,
       applyStartDate,
       applyEndDate,
-      winnerAnnounceDate: null,
+      winnerAnnounceDate,
       contractStartDate: null,
       contractEndDate: null,
       moveInDate: null,
@@ -185,14 +220,15 @@ export class MyHomeApiProvider implements SourceProvider<MyHomeAnnouncement> {
   }
 
   private calculateStatus(start: string | null, end: string | null): "UPCOMING" | "OPEN" | "CLOSED" {
-    const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const now = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
     if (start && start > now) return "UPCOMING";
     if (end && end < now) return "CLOSED";
     return "OPEN";
   }
 
   getStableExternalId(raw: MyHomeAnnouncement): string {
-    const canonicalId = extractCanonicalId(raw.url || raw.pcUrl || null, raw.suplyInsttNm, raw.pblancId);
+    const insttName = normalizeInstitutionName(raw.suplyInsttNm);
+    const canonicalId = extractCanonicalId(raw.url || raw.pcUrl || null, insttName, raw.pblancId);
     return `${this.providerId}:${canonicalId}`;
   }
 

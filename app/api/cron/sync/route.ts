@@ -340,6 +340,14 @@ export async function GET(request: Request) {
     for (const cand of candidateAnns) {
       for (const dbAnn of existingDbAnns) {
         if (isSameAnnouncement(dbAnn, cand)) {
+          cand.metadata = getSourceMetadata(dbAnn, cand);
+          const priorityKeys = ["lh_web", "sh_web", "gh_web", "ih_web", "bmc_web"];
+          const isDbPriority = priorityKeys.some(key => dbAnn.externalSourceKey?.startsWith(key));
+          const isCandPriority = priorityKeys.some(key => cand.externalSourceKey?.startsWith(key));
+          if (isDbPriority && !isCandPriority) {
+            cand.externalSourceKey = dbAnn.externalSourceKey;
+            cand.pblancUrl = dbAnn.pblancUrl || cand.pblancUrl;
+          }
           if (cand.announceNo !== dbAnn.announceNo) {
             console.log(`[FastSync] Mapping candidate ${cand.announceNo} to existing DB ${dbAnn.announceNo} (${dbAnn.name}) due to high similarity.`);
             cand.announceNo = dbAnn.announceNo;
