@@ -1,15 +1,11 @@
 "use server";
 
-import { db } from "@/lib/db";
-import { announcements } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { updateAnnouncement } from "@/lib/sheets/repository";
 import { revalidatePath } from "next/cache";
 
 export async function toggleBookmark(id: string, currentState: boolean) {
   try {
-    await db.update(announcements)
-      .set({ isBookmarked: !currentState, updatedAt: new Date() })
-      .where(eq(announcements.id, id));
+    await updateAnnouncement(id, { isBookmarked: !currentState });
     
     revalidatePath("/projects");
     return { success: true };

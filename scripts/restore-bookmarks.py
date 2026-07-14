@@ -4,8 +4,6 @@ import shutil
 import urllib.parse
 import json
 import sys
-import psycopg2
-import psycopg2.extras
 
 def extract_slug_from_url(url):
     try:
@@ -123,58 +121,11 @@ def main():
         }))
         return
 
-    # Database load
-    db_url = None
-    env_path = ".env.local"
-    if os.path.exists(env_path):
-        with open(env_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if "=" in line:
-                    k, v = line.split("=", 1)
-                    if k.strip() == "DATABASE_URL":
-                        db_url = v.strip().strip("'").strip('"')
-                        break
-
-    if not db_url:
-        print(json.dumps({
-            "success": False,
-            "error": "DATABASE_URL not found in .env.local"
-        }))
-        return
-
-    try:
-        pg_conn = psycopg2.connect(db_url)
-        pg_cursor = pg_conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        
-        restored_count = 0
-        for slug in visited_slugs:
-            pg_cursor.execute("SELECT id FROM housing_projects WHERE slug = %s", (slug,))
-            proj = pg_cursor.fetchone()
-            if proj:
-                proj_id = proj["id"]
-                pg_cursor.execute(
-                    "UPDATE announcements SET is_bookmarked = true, updated_at = NOW() WHERE project_id = %s",
-                    (proj_id,)
-                )
-                restored_count += pg_cursor.rowcount
-                    
-        pg_conn.commit()
-        pg_cursor.close()
-        pg_conn.close()
-        
-        print(json.dumps({
-            "success": True,
-            "restoredCount": restored_count,
-            "scannedProfiles": scanned_profiles
-        }))
-    except Exception as e:
-        print(json.dumps({
-            "success": False,
-            "error": f"Database error during bookmark restoration: {str(e)}"
-        }))
+    print(json.dumps({
+        "success": True,
+        "slugs": sorted(visited_slugs),
+        "scannedProfiles": scanned_profiles
+    }))
 
 if __name__ == "__main__":
     main()

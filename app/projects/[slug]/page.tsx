@@ -1,24 +1,12 @@
 export const dynamic = "force-dynamic";
 
 import { StatusBadge } from "@/components/StatusBadge";
-import { db } from "@/lib/db";
-import { housingProjects, announcements, announcementUnits, rawSourcePayloads } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { getProjectBySlug, replaceAnnouncementUnits, updateAnnouncement } from "@/lib/sheets/repository";
 import { getApplyHomeUrl, getDynamicStatus, getSourceBadge } from "@/lib/utils";
 import { notFound } from "next/navigation";
 
 async function getProjectDetails(slug: string) {
-  const project = await db.query.housingProjects.findFirst({
-    where: eq(housingProjects.slug, slug),
-    with: {
-      announcements: {
-        with: {
-          units: true,
-        },
-        orderBy: (ann, { desc }) => [desc(ann.createdAt)],
-      }
-    }
-  });
+  const project = await getProjectBySlug(slug);
 
   if (!project || project.announcements.length === 0) {
     return project;
@@ -53,13 +41,10 @@ async function getProjectDetails(slug: string) {
             updatedSeqNo = attachments.seqNo;
             updatedSn = attachments.sn;
             
-            await db.update(announcements)
-              .set({
-                atchmnflSeqNo: updatedSeqNo,
-                atchmnflSn: updatedSn,
-                updatedAt: new Date(),
-              })
-              .where(eq(announcements.id, latestAnn.id));
+            await updateAnnouncement(latestAnn.id, {
+              atchmnflSeqNo: updatedSeqNo,
+              atchmnflSn: updatedSn,
+            });
             
             latestAnn.atchmnflSeqNo = updatedSeqNo;
             latestAnn.atchmnflSn = updatedSn;
@@ -69,12 +54,8 @@ async function getProjectDetails(slug: string) {
 
         // 2. Fetch units if missing
         if (!hasUnits) {
-          const rawPayload = latestAnn.rawPayloadId 
-            ? await db.query.rawSourcePayloads.findFirst({
-                where: eq(rawSourcePayloads.id, latestAnn.rawPayloadId),
-              })
-            : null;
-          const type = (rawPayload?.payload as any)?._type || "APT";
+          const snapshotData = latestAnn.latestSnapshotData as { _type?: string } | null;
+          const type = snapshotData?._type || "APT";
 
           console.log(`[LazyLoad] Fetching units for ${project.name} (type: ${type})...`);
           const units = await provider.fetchUnits(
@@ -84,18 +65,20 @@ async function getProjectDetails(slug: string) {
           );
 
           if (units && units.length > 0) {
-            // Delete existing units just in case
-            await db.delete(announcementUnits)
-              .where(eq(announcementUnits.announcementId, latestAnn.id));
-              
-            const insertedUnits = await db.insert(announcementUnits)
-              .values(
-                units.map((u: any) => ({
-                  announcementId: latestAnn.id,
-                  ...u,
-                }))
-              )
-              .returning();
+            const insertedUnits = await replaceAnnouncementUnits(
+              latestAnn.id,
+              units.map((unit: any) => ({
+                unitType: String(unit.unitType || ""),
+                supplyArea: unit.supplyArea == null ? null : String(unit.supplyArea),
+                exclusiveArea: unit.exclusiveArea == null ? null : String(unit.exclusiveArea),
+                generalSupply: unit.generalSupply == null ? null : Number(unit.generalSupply),
+                specialSupply: unit.specialSupply == null ? null : Number(unit.specialSupply),
+                priceMin: unit.priceMin == null ? null : Number(unit.priceMin),
+                priceMax: unit.priceMax == null ? null : Number(unit.priceMax),
+                floorMin: unit.floorMin == null ? null : Number(unit.floorMin),
+                floorMax: unit.floorMax == null ? null : Number(unit.floorMax),
+              }))
+            );
             
             latestAnn.units = insertedUnits as any[];
             console.log(`[LazyLoad] Saved ${units.length} units for ${project.name}`);

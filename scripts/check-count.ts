@@ -1,48 +1,23 @@
-import * as fs from "fs";
-import * as path from "path";
+import dotenv from "dotenv";
+import path from "node:path";
 
-// Manually load .env.local before importing db
-try {
-  const envPath = path.join(process.cwd(), ".env.local");
-  if (fs.existsSync(envPath)) {
-    const envContent = fs.readFileSync(envPath, "utf-8");
-    for (const line of envContent.split("\n")) {
-      const match = line.match(/^\s*([^#=]+)\s*=\s*(.*)$/);
-      if (match) {
-        const key = match[1].trim();
-        let val = match[2].trim();
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-          val = val.substring(1, val.length - 1);
-        }
-        process.env[key] = val;
-      }
-    }
-  }
-} catch (e) {
-  console.error("Failed to parse env file", e);
-}
+dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
 
 async function run() {
-  const { db } = await import("../lib/db");
-  const { sql } = await import("drizzle-orm");
-
-  const result = await db.execute(sql`
-    select 
-      r.id,
-      p.name as provider,
-      r.status,
-      r.started_at,
-      r.total_fetched,
-      r.total_upserted,
-      r.total_errors,
-      r.error_summary
-    from source_sync_runs r
-    join source_providers p on r.provider_id = p.id
-    order by r.started_at desc
-    limit 10
-  `);
+  const { listSyncRuns } = await import("../lib/sheets/repository");
+  const runs = (await listSyncRuns())
+    .sort((left, right) => right.startedAt.getTime() - left.startedAt.getTime())
+    .slice(0, 10);
   console.log("Recent sync runs:");
-  console.log(result);
+  console.table(runs.map((run) => ({
+    provider: run.providerName,
+    status: run.status,
+    startedAt: run.startedAt.toISOString(),
+    totalFetched: run.totalFetched,
+    totalUpserted: run.totalUpserted,
+    totalErrors: run.totalErrors,
+    errorSummary: run.errorSummary,
+  })));
 }
 
 run().catch(console.error);

@@ -1,33 +1,25 @@
 export const dynamic = "force-dynamic";
 
-import { db } from "@/lib/db";
-import { changeEvents, announcements, housingProjects } from "@/lib/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { listAnnouncementRecords, listChangeEvents } from "@/lib/sheets/repository";
 import Link from "next/link";
 
 async function getChangeEvents() {
-  return await db
-    .select({
-      id: changeEvents.id,
-      eventType: changeEvents.eventType,
-      entityType: changeEvents.entityType,
-      entityId: changeEvents.entityId,
-      previousData: changeEvents.previousData,
-      currentData: changeEvents.currentData,
-      diffSummary: changeEvents.diffSummary,
-      severity: changeEvents.severity,
-      detectedAt: changeEvents.detectedAt,
-      announcementNo: announcements.announceNo,
-      supplyType: announcements.supplyType,
-      pblancUrl: announcements.pblancUrl,
-      projectName: housingProjects.name,
-      projectSlug: housingProjects.slug,
-    })
-    .from(changeEvents)
-    .leftJoin(announcements, eq(changeEvents.entityId, announcements.id))
-    .leftJoin(housingProjects, eq(announcements.projectId, housingProjects.id))
-    .orderBy(desc(changeEvents.detectedAt))
-    .limit(100);
+  const [events, announcements] = await Promise.all([listChangeEvents(), listAnnouncementRecords()]);
+  const announcementMap = new Map(announcements.map((announcement) => [announcement.id, announcement]));
+  return events
+    .sort((left, right) => right.detectedAt.getTime() - left.detectedAt.getTime())
+    .slice(0, 100)
+    .map((event) => {
+      const announcement = announcementMap.get(event.entityId);
+      return {
+        ...event,
+        announcementNo: announcement?.announceNo || null,
+        supplyType: announcement?.supplyType || null,
+        pblancUrl: announcement?.pblancUrl || null,
+        projectName: announcement?.projectName || null,
+        projectSlug: announcement?.projectSlug || null,
+      };
+    });
 }
 
 export default async function ChangesPage() {

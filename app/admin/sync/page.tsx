@@ -1,28 +1,13 @@
 export const dynamic = "force-dynamic";
 
-import { db } from "@/lib/db";
-import { sourceSyncRuns, sourceProviders } from "@/lib/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { listSyncRuns } from "@/lib/sheets/repository";
 import { SyncButton } from "@/components/SyncButton";
 import { SyncHistoryTable } from "@/components/SyncHistoryTable";
 
 async function getSyncRuns() {
-  const runs = await db
-    .select({
-      id: sourceSyncRuns.id,
-      status: sourceSyncRuns.status,
-      startedAt: sourceSyncRuns.startedAt,
-      finishedAt: sourceSyncRuns.finishedAt,
-      totalFetched: sourceSyncRuns.totalFetched,
-      totalUpserted: sourceSyncRuns.totalUpserted,
-      totalChanged: sourceSyncRuns.totalChanged,
-      providerName: sourceProviders.name,
-      providerDisplayName: sourceProviders.displayName,
-    })
-    .from(sourceSyncRuns)
-    .innerJoin(sourceProviders, eq(sourceSyncRuns.providerId, sourceProviders.id))
-    .orderBy(desc(sourceSyncRuns.startedAt))
-    .limit(100);
+  const runs = (await listSyncRuns())
+    .sort((left, right) => right.startedAt.getTime() - left.startedAt.getTime())
+    .slice(0, 100);
 
   return runs.map((run) => ({
     ...run,

@@ -1,9 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { desc, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { announcements, housingProjects, sourceProviders, sourceSyncRuns } from "@/lib/db/schema";
+import { listAnnouncementRecords, listSyncRuns } from "@/lib/sheets/repository";
 
 type MetadataObject = {
   sourceKeys?: unknown;
@@ -174,44 +172,18 @@ function buildDuplicateGroups(rows: DiagnosticAnnouncement[]) {
 }
 
 async function getDiagnostics() {
-  const [announcementRows, syncRows] = await Promise.all([
-    db
-      .select({
-        id: announcements.id,
-        announceNo: announcements.announceNo,
-        supplyType: announcements.supplyType,
-        status: announcements.status,
-        announceDate: announcements.announceDate,
-        applyStartDate: announcements.applyStartDate,
-        applyEndDate: announcements.applyEndDate,
-        winnerAnnounceDate: announcements.winnerAnnounceDate,
-        pblancUrl: announcements.pblancUrl,
-        externalSourceKey: announcements.externalSourceKey,
-        metadata: announcements.metadata,
-        updatedAt: announcements.updatedAt,
-        projectName: housingProjects.name,
-        projectSlug: housingProjects.slug,
-        address: housingProjects.address,
-      })
-      .from(announcements)
-      .innerJoin(housingProjects, eq(announcements.projectId, housingProjects.id))
-      .orderBy(desc(announcements.updatedAt)),
-    db
-      .select({
-        providerName: sourceProviders.name,
-        providerDisplayName: sourceProviders.displayName,
-        status: sourceSyncRuns.status,
-        startedAt: sourceSyncRuns.startedAt,
-        finishedAt: sourceSyncRuns.finishedAt,
-        totalFetched: sourceSyncRuns.totalFetched,
-        totalUpserted: sourceSyncRuns.totalUpserted,
-        totalErrors: sourceSyncRuns.totalErrors,
-      })
-      .from(sourceSyncRuns)
-      .innerJoin(sourceProviders, eq(sourceSyncRuns.providerId, sourceProviders.id))
-      .orderBy(desc(sourceSyncRuns.startedAt))
-      .limit(300),
-  ]);
+  const [announcementRecords, syncRecords] = await Promise.all([listAnnouncementRecords(), listSyncRuns()]);
+  const announcementRows = announcementRecords
+    .sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime())
+    .map((announcement) => ({
+      ...announcement,
+      projectName: announcement.projectName,
+      projectSlug: announcement.projectSlug,
+      address: announcement.address,
+    }));
+  const syncRows = syncRecords
+    .sort((left, right) => right.startedAt.getTime() - left.startedAt.getTime())
+    .slice(0, 300);
 
   const rows = announcementRows as DiagnosticAnnouncement[];
   const latestRunByProvider = new Map<string, SyncRunSummary>();

@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { announcements } from "@/lib/db/schema";
-import { and, like, isNotNull, isNull } from "drizzle-orm";
+import { listAnnouncementRecords } from "@/lib/sheets/repository";
 
 export async function GET() {
   try {
     // Count total ApplyHome announcements
-    const allApplyHome = await db.select().from(announcements).where(
-      like(announcements.externalSourceKey, "applyhome%")
+    const allApplyHome = (await listAnnouncementRecords()).filter((announcement) =>
+      announcement.externalSourceKey?.startsWith("applyhome")
     );
     
     const total = allApplyHome.length;

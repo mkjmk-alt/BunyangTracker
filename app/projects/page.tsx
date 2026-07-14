@@ -1,8 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { and, eq, desc, asc, inArray, or, ilike, not, gte, isNull } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { announcements, housingProjects, sourceSyncRuns } from "@/lib/db/schema";
+import { listAnnouncements, listSyncRuns } from "@/lib/sheets/repository";
 import { FilterSection } from "../../components/FilterSection";
 import { SyncProgressBar } from "../components/SyncProgressBar";
 import { ProjectListTable } from "../../components/ProjectListTable";
@@ -16,67 +14,28 @@ const TYPE_GROUPS = {
 async function getAnnouncements(
   filters: { category?: string; q?: string; sort?: string }
 ) {
-  const whereConditions = [];
-  
-  if (filters.category === "SALE") {
-    whereConditions.push(
-      or(
-        inArray(announcements.supplyType, TYPE_GROUPS.SALE),
-        ilike(announcements.supplyType, "%도시형%"),
-        ilike(announcements.supplyType, "%오피스텔%")
-      )
-    );
-  } else if (filters.category === "RENT") {
-    whereConditions.push(
-      and(
-        or(
-          inArray(announcements.supplyType, TYPE_GROUPS.RENT),
-          ilike(announcements.supplyType, "%임대%")
-        ),
-        // 도시형/오피스텔은 임대가 포함되어 있어도 분양으로 우선 분류
-        not(ilike(announcements.supplyType, "%도시형%")),
-        not(ilike(announcements.supplyType, "%오피스텔%"))
-      )
-    );
-  }
+  const query = filters.q?.trim().toLocaleLowerCase("ko-KR");
+  const thirtyDaysAgoDate = new Date(Date.now() + 9 * 60 * 60 * 1000 - 30 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = thirtyDaysAgoDate.toISOString().split("T")[0];
 
-  if (filters.q) {
-    whereConditions.push(ilike(housingProjects.name, `%${filters.q}%`));
-  } else {
-    // If no search query is specified, default to active, upcoming, or recently closed (last 30 days) announcements
-    // ponytail: reduce default payload size for faster network transfer and rendering. Bypass filter if searching.
-    const thirtyDaysAgoDate = new Date(Date.now() + 9 * 60 * 60 * 1000 - 30 * 24 * 60 * 60 * 1000);
-    const thirtyDaysAgo = thirtyDaysAgoDate.toISOString().split("T")[0];
+  const filtered = (await listAnnouncements()).filter((announcement) => {
+    const type = announcement.supplyType;
+    const isOfficetel = type.includes("도시형") || type.includes("오피스텔");
+    if (filters.category === "SALE" && !TYPE_GROUPS.SALE.includes(type) && !isOfficetel) return false;
+    if (
+      filters.category === "RENT" &&
+      (!(TYPE_GROUPS.RENT.includes(type) || type.includes("임대")) || isOfficetel)
+    ) return false;
+    if (query) return announcement.project.name.toLocaleLowerCase("ko-KR").includes(query);
+    return !announcement.applyEndDate || announcement.applyEndDate >= thirtyDaysAgo;
+  });
 
-    whereConditions.push(
-      or(
-        isNull(announcements.applyEndDate),
-        gte(announcements.applyEndDate, thirtyDaysAgo)
-      )
-    );
-  }
-
-  let orderByClause = desc(announcements.announceDate);
-  if (filters.sort === "startAsc") {
-    orderByClause = asc(announcements.applyStartDate);
-  } else if (filters.sort === "startDesc") {
-    orderByClause = desc(announcements.applyStartDate);
-  }
-
-  const results = await db
-    .select({
-      announcement: announcements,
-      project: housingProjects,
-    })
-    .from(announcements)
-    .innerJoin(housingProjects, eq(announcements.projectId, housingProjects.id))
-    .where(and(...whereConditions))
-    .orderBy(orderByClause);
-
-  return results.map(r => ({
-    ...r.announcement,
-    project: r.project
-  }));
+  return filtered.sort((left, right) => {
+    const leftValue = filters.sort?.startsWith("start") ? left.applyStartDate : left.announceDate;
+    const rightValue = filters.sort?.startsWith("start") ? right.applyStartDate : right.announceDate;
+    const result = (leftValue || "").localeCompare(rightValue || "");
+    return filters.sort === "startAsc" ? result : -result;
+  });
 }
 
 export default async function ProjectsPage({ 
@@ -91,10 +50,11 @@ export default async function ProjectsPage({
   // ponytail: parallel query execution to save RTT latency
   const [allAnns, lastSyncRun] = await Promise.all([
     getAnnouncements({ category, q, sort }),
-    db.query.sourceSyncRuns.findFirst({
-      where: eq(sourceSyncRuns.status, "success"),
-      orderBy: [desc(sourceSyncRuns.startedAt)],
-    })
+    listSyncRuns().then((runs) =>
+      runs
+        .filter((run) => run.status === "success")
+        .sort((left, right) => right.startedAt.getTime() - left.startedAt.getTime())[0] || null
+    )
   ]);
 
   const lastSyncStartedAt = lastSyncRun ? lastSyncRun.startedAt.getTime() : 0;

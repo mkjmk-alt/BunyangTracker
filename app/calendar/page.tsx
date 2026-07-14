@@ -1,8 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { db } from "@/lib/db";
-import { announcements, housingProjects } from "@/lib/db/schema";
-import { and, gte, lte, eq } from "drizzle-orm";
+import { listAnnouncements } from "@/lib/sheets/repository";
 import { 
   format, 
   startOfMonth, 
@@ -27,24 +25,11 @@ const TYPE_GROUPS = {
 };
 
 async function getSchedules(startDate: string, endDate: string) {
-  const results = await db
-    .select({
-      announcement: announcements,
-      project: housingProjects,
-    })
-    .from(announcements)
-    .innerJoin(housingProjects, eq(announcements.projectId, housingProjects.id))
-    .where(
-      and(
-        gte(announcements.applyEndDate, startDate),
-        lte(announcements.applyStartDate, endDate)
-      )
-    );
-
-  return results.map(r => ({
-    ...r.announcement,
-    project: r.project
-  }));
+  return (await listAnnouncements()).filter(
+    (announcement) =>
+      Boolean(announcement.applyEndDate && announcement.applyEndDate >= startDate) &&
+      Boolean(announcement.applyStartDate && announcement.applyStartDate <= endDate)
+  );
 }
 
 export default async function CalendarPage({ 

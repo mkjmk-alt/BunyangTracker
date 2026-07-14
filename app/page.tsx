@@ -2,50 +2,29 @@ export const dynamic = "force-dynamic";
 
 import { KpiCard } from "@/components/KpiCard";
 import { AnnouncementCard } from "@/components/AnnouncementCard";
-import { db } from "@/lib/db";
-import { announcements, housingProjects, changeEvents } from "@/lib/db/schema";
-import { desc, eq, sql, and, or, lte, gte, isNull } from "drizzle-orm";
+import { listAnnouncements, listChangeEvents } from "@/lib/sheets/repository";
 import { getKstDateString } from "@/lib/utils";
 import Link from "next/link";
 
 async function getStats(kstToday: string) {
-  const [newAnnCountResult, changeCountResult] = await Promise.all([
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(announcements)
-      .where(
-        and(
-          or(
-            isNull(announcements.applyStartDate),
-            lte(announcements.applyStartDate, kstToday)
-          ),
-          or(
-            isNull(announcements.applyEndDate),
-            gte(announcements.applyEndDate, kstToday)
-          )
-        )
-      ),
-    db.select({ count: sql<number>`count(*)` }).from(changeEvents)
-  ]);
-
-  const newAnnCount = newAnnCountResult[0];
-  const changeCount = changeCountResult[0];
+  const [allAnnouncements, changes] = await Promise.all([listAnnouncements(), listChangeEvents()]);
+  const activeAnnouncements = allAnnouncements.filter(
+    (announcement) =>
+      (!announcement.applyStartDate || announcement.applyStartDate <= kstToday) &&
+      (!announcement.applyEndDate || announcement.applyEndDate >= kstToday)
+  ).length;
   
   return {
-    activeAnnouncements: newAnnCount?.count || 0,
-    recentChanges: changeCount?.count || 0,
+    activeAnnouncements,
+    recentChanges: changes.length,
     upcomingEvents: 0,
   };
 }
 
 async function getRecentAnnouncements() {
-  return await db.query.announcements.findMany({
-    with: {
-      project: true,
-    },
-    orderBy: [desc(announcements.createdAt)],
-    limit: 6,
-  });
+  return (await listAnnouncements())
+    .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+    .slice(0, 6);
 }
 
 export default async function DashboardPage() {

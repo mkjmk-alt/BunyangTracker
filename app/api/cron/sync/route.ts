@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { sourceSyncRuns, sourceProviders, housingProjects, announcements, announcementSnapshots, changeEvents } from "@/lib/db/schema";
+import {
+  appendChangeEvents,
+  appendSnapshots,
+  deleteAnnouncements,
+  listAnnouncementRecords,
+  upsertAnnouncements,
+  upsertSyncRuns,
+} from "@/lib/sheets/repository";
+import type { AnnouncementRecord, ChangeEventRecord, SnapshotRecord, SyncRunRecord } from "@/lib/sheets/types";
 import { ApplyHomeApiProvider } from "@/lib/sources/applyhome-api";
 import { ApplyHomeWebProvider } from "@/lib/sources/applyhome-web";
 import { LHApiProvider } from "@/lib/sources/lh-api";
@@ -11,7 +18,6 @@ import { MyHomeApiProvider } from "@/lib/sources/myhome-api";
 import { IHWebProvider } from "@/lib/sources/ih-web";
 import { BMCWebProvider } from "@/lib/sources/bmc-web";
 import { generateFingerprint } from "@/lib/normalize/announcement";
-import { eq, sql, inArray, and, gte, like, isNotNull } from "drizzle-orm";
 import { compareAnnouncements, generateDiffSummary } from "@/lib/diff/announcement-diff";
 import { randomUUID } from "crypto";
 
@@ -92,33 +98,29 @@ export async function GET(request: Request) {
       return true;
     });
 
-    const providerIds: Record<string, string> = {};
     const providerSyncRunIds: Record<string, string> = {};
+    const syncRunMap = new Map<string, SyncRunRecord>();
     for (const { instance, label } of providerConfigs) {
-      const existing = await db.query.sourceProviders.findFirst({
-        where: eq(sourceProviders.name, instance.providerId),
-      });
-      let pId = "";
-      if (existing) {
-        pId = existing.id;
-      } else {
-        const [created] = await db
-          .insert(sourceProviders)
-          .values({ name: instance.providerId, displayName: label, isActive: true })
-          .returning();
-        pId = created.id;
-      }
-      providerIds[instance.providerId] = pId;
-
       const runId = randomUUID();
-      await db.insert(sourceSyncRuns).values({
+      syncRunMap.set(instance.providerId, {
         id: runId,
-        providerId: pId,
+        providerId: instance.providerId,
+        providerName: instance.providerId,
+        providerDisplayName: label,
         status: "running",
         startedAt: new Date(),
+        finishedAt: null,
+        totalFetched: 0,
+        totalNormalized: 0,
+        totalUpserted: 0,
+        totalChanged: 0,
+        totalErrors: 0,
+        errorSummary: null,
+        metadata: null,
       });
       providerSyncRunIds[instance.providerId] = runId;
     }
+    await upsertSyncRuns(Array.from(syncRunMap.values()));
 
     // ─── 3. Fetch index from ALL providers SEQUENTIALLY (APIs first) ───
     const fetchResults = [];
@@ -167,7 +169,11 @@ export async function GET(request: Request) {
 
     console.log(`[FastSync] Fetched: ${totalFetched}, Normalized: ${allNormalized.length}`);
 
-    // ─── 5. Deduplicate & upsert projects (individual, small count) ─
+    // ─── 5. Deduplicate projects in memory ────────────────────────
+    const existingRecords = await listAnnouncementRecords();
+    const existingProjectByMgmtNo = new Map(
+      existingRecords.map((record) => [record.housingMgmtNo, record])
+    );
     const seenProjects = new Map<string, any>();
     for (const { normalized } of allNormalized) {
       if (!seenProjects.has(normalized.housingMgmtNo)) {
@@ -177,32 +183,7 @@ export async function GET(request: Request) {
 
     const projectIdMap = new Map<string, string>();
     for (const [mgmtNo, n] of seenProjects) {
-      try {
-        const [p] = await db
-          .insert(housingProjects)
-          .values({
-            housingMgmtNo: n.housingMgmtNo,
-            name: n.name,
-            slug: n.slug,
-            address: n.address,
-            builderName: n.builderName,
-            developerName: n.developerName,
-            totalHouseholds: n.totalHouseholds,
-            externalSourceKey: n.externalSourceKey,
-          })
-          .onConflictDoUpdate({
-            target: housingProjects.housingMgmtNo,
-            set: { name: n.name, address: n.address, updatedAt: new Date() },
-          })
-          .returning();
-        projectIdMap.set(mgmtNo, p.id);
-      } catch (e: any) {
-        // Slug conflict or other – try to find existing
-        const existing = await db.query.housingProjects.findFirst({
-          where: eq(housingProjects.housingMgmtNo, mgmtNo),
-        });
-        if (existing) projectIdMap.set(mgmtNo, existing.id);
-      }
+      projectIdMap.set(mgmtNo, existingProjectByMgmtNo.get(mgmtNo)?.projectId || randomUUID());
     }
 
     console.log(`[FastSync] Projects upserted: ${projectIdMap.size}`);
@@ -217,6 +198,17 @@ export async function GET(request: Request) {
 
       candidateAnns.push({
         projectId,
+        housingMgmtNo: normalized.housingMgmtNo,
+        projectName: normalized.name,
+        projectSlug: normalized.slug,
+        regionId: null,
+        address: normalized.address || null,
+        builderName: normalized.builderName || null,
+        developerName: normalized.developerName || null,
+        totalHouseholds: normalized.totalHouseholds ?? null,
+        projectSourceProviderId: providerId,
+        projectExternalSourceKey: normalized.externalSourceKey || null,
+        projectMetadata: null,
         announceNo: normalized.announceNo,
         supplyType: normalized.supplyType,
         status: normalized.status,
@@ -230,11 +222,18 @@ export async function GET(request: Request) {
         moveInDate: normalized.moveInDate,
         pblancUrl: normalized.pblancUrl,
         homepageAdres: normalized.homepageAdres,
+        totalSupplyHouseholds: normalized.totalSupplyHouseholds ?? null,
+        generalSupplyHouseholds: normalized.generalSupplyHouseholds ?? null,
+        specialSupplyHouseholds: normalized.specialSupplyHouseholds ?? null,
+        sourceProviderId: providerId,
+        rawPayloadId: null,
+        isBookmarked: false,
+        latestSnapshotData: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
         externalSourceKey: normalized.externalSourceKey,
         fingerprint,
-        housingMgmtNo: normalized.housingMgmtNo,
         name: normalized.name,
-        address: normalized.address || "",
         atchmnflSeqNo: null as string | null,
         atchmnflSn: null as string | null,
         normalized,
@@ -314,27 +313,7 @@ export async function GET(request: Request) {
     }
 
     // Load all existing announcements from the DB to find matches across runs
-    let existingDbAnns: any[] = [];
-    try {
-      existingDbAnns = await db
-        .select({
-          id: announcements.id,
-          announceNo: announcements.announceNo,
-          announceDate: announcements.announceDate,
-          applyStartDate: announcements.applyStartDate,
-          applyEndDate: announcements.applyEndDate,
-          pblancUrl: announcements.pblancUrl,
-          homepageAdres: announcements.homepageAdres,
-          externalSourceKey: announcements.externalSourceKey,
-          metadata: announcements.metadata,
-          name: housingProjects.name,
-          address: housingProjects.address,
-        })
-        .from(announcements)
-        .innerJoin(housingProjects, eq(announcements.projectId, housingProjects.id));
-    } catch (e: any) {
-      console.error(`[FastSync] Failed to load existing DB announcements for cross-deduplication:`, e.message);
-    }
+    const existingDbAnns = existingRecords.map((record) => ({ ...record, name: record.projectName }));
 
     // Cross-run deduplication: map candidate announceNo to matching DB announceNo if highly similar
     for (const cand of candidateAnns) {
@@ -378,12 +357,7 @@ export async function GET(request: Request) {
     // ponytail: run attachment discovery in parallel chunks to dramatically reduce total execution time, or skip if fast mode is active
     if (!fast) {
       try {
-        const existingAnns = await db.select({
-          announceNo: announcements.announceNo,
-          atchmnflSeqNo: announcements.atchmnflSeqNo,
-          atchmnflSn: announcements.atchmnflSn,
-        }).from(announcements);
-        const existingMap = new Map(existingAnns.map(a => [a.announceNo, a]));
+        const existingMap = new Map(existingRecords.map(a => [a.announceNo, a]));
         
         const provider = new ApplyHomeApiProvider();
         
@@ -437,12 +411,8 @@ export async function GET(request: Request) {
 
     // ─── 6b. Compare announcements & detect changes ─────────────────
     const currentAnnounceNos = annValues.map(a => a.announceNo);
-    const dbAnns = currentAnnounceNos.length > 0 
-      ? await db
-          .select()
-          .from(announcements)
-          .where(inArray(announcements.announceNo, currentAnnounceNos))
-      : [];
+    const currentAnnounceNoSet = new Set(currentAnnounceNos);
+    const dbAnns = existingRecords.filter((announcement) => currentAnnounceNoSet.has(announcement.announceNo));
     const dbAnnMap = new Map(dbAnns.map(a => [a.announceNo, a]));
 
     const finalAnnValues = annValues.map(ann => {
@@ -450,24 +420,31 @@ export async function GET(request: Request) {
       return {
         ...ann,
         id: dbAnn ? dbAnn.id : randomUUID(),
+        projectId: dbAnn ? dbAnn.projectId : ann.projectId,
+        projectSlug: dbAnn ? dbAnn.projectSlug : ann.projectSlug,
         latestSnapshotId: dbAnn ? dbAnn.latestSnapshotId : null,
+        latestSnapshotData: dbAnn ? dbAnn.latestSnapshotData : null,
+        rawPayloadId: dbAnn ? dbAnn.rawPayloadId : ann.rawPayloadId,
+        isBookmarked: dbAnn ? dbAnn.isBookmarked : ann.isBookmarked,
+        atchmnflSeqNo: dbAnn?.atchmnflSeqNo || ann.atchmnflSeqNo,
+        atchmnflSn: dbAnn?.atchmnflSn || ann.atchmnflSn,
+        createdAt: dbAnn ? dbAnn.createdAt : ann.createdAt,
+        updatedAt: new Date(),
         metadata: getSourceMetadata(ann, dbAnn),
       };
     });
 
-    const eventsToInsert: any[] = [];
-    const snapshotsToInsert: any[] = [];
-    const snapshotIdsToFetch: string[] = [];
-    const changedPairs: { ann: any; dbAnn: any }[] = [];
+    const eventsToInsert: ChangeEventRecord[] = [];
+    const snapshotsToInsert: SnapshotRecord[] = [];
 
     for (const ann of finalAnnValues) {
       const dbAnn = dbAnnMap.get(ann.announceNo);
 
       if (!dbAnn) {
-        // 신규 공고 등록
         const diff = compareAnnouncements(null, ann.normalized);
         if (diff.hasChanged) {
           eventsToInsert.push({
+            id: randomUUID(),
             eventType: diff.eventType,
             entityType: "announcement",
             entityId: ann.id,
@@ -476,6 +453,8 @@ export async function GET(request: Request) {
             currentData: ann.normalized,
             diffSummary: generateDiffSummary(diff),
             severity: diff.severity,
+            detectedAt: new Date(),
+            notifiedAt: null,
           });
         }
 
@@ -486,66 +465,25 @@ export async function GET(request: Request) {
           syncRunId: ann.syncRunId,
           snapshotData: ann.normalized,
           fingerprint: ann.fingerprint,
+          snapshottedAt: new Date(),
         });
         ann.latestSnapshotId = snapshotId;
+        ann.latestSnapshotData = ann.normalized;
       } else if (dbAnn.fingerprint !== ann.fingerprint) {
-        // 기존 공고 변경
-        if (dbAnn.latestSnapshotId) {
-          snapshotIdsToFetch.push(dbAnn.latestSnapshotId);
-          changedPairs.push({ ann, dbAnn });
-        } else {
-          // 최신 스냅샷 ID가 없는 경우 폴백 비교
-          const fallbackOldData = {
-            ...ann.normalized,
-            status: dbAnn.status,
-            applyStartDate: dbAnn.applyStartDate,
-            applyEndDate: dbAnn.applyEndDate,
-            announceDate: dbAnn.announceDate,
-            winnerAnnounceDate: dbAnn.winnerAnnounceDate,
-            contractStartDate: dbAnn.contractStartDate,
-            contractEndDate: dbAnn.contractEndDate,
-          };
-          const diff = compareAnnouncements(fallbackOldData, ann.normalized);
-          if (diff.hasChanged) {
-            eventsToInsert.push({
-              eventType: diff.eventType,
-              entityType: "announcement",
-              entityId: ann.id,
-              syncRunId: ann.syncRunId,
-              previousData: fallbackOldData,
-              currentData: ann.normalized,
-              diffSummary: generateDiffSummary(diff),
-              severity: diff.severity,
-          });
-          }
-
-          const snapshotId = randomUUID();
-          snapshotsToInsert.push({
-            id: snapshotId,
-            announcementId: ann.id,
-            syncRunId: ann.syncRunId,
-            snapshotData: ann.normalized,
-            fingerprint: ann.fingerprint,
-          });
-          ann.latestSnapshotId = snapshotId;
-        }
-      }
-    }
-
-    if (snapshotIdsToFetch.length > 0) {
-      const dbSnapshots = await db
-        .select()
-        .from(announcementSnapshots)
-        .where(inArray(announcementSnapshots.id, snapshotIdsToFetch));
-      const dbSnapshotMap = new Map(dbSnapshots.map(s => [s.id, s]));
-
-      for (const { ann, dbAnn } of changedPairs) {
-        const snapshot = dbSnapshotMap.get(dbAnn.latestSnapshotId!);
-        const oldData = snapshot ? (snapshot.snapshotData as any) : null;
-
+        const oldData = dbAnn.latestSnapshotData || {
+          ...ann.normalized,
+          status: dbAnn.status,
+          applyStartDate: dbAnn.applyStartDate,
+          applyEndDate: dbAnn.applyEndDate,
+          announceDate: dbAnn.announceDate,
+          winnerAnnounceDate: dbAnn.winnerAnnounceDate,
+          contractStartDate: dbAnn.contractStartDate,
+          contractEndDate: dbAnn.contractEndDate,
+        };
         const diff = compareAnnouncements(oldData, ann.normalized);
         if (diff.hasChanged) {
           eventsToInsert.push({
+            id: randomUUID(),
             eventType: diff.eventType,
             entityType: "announcement",
             entityId: ann.id,
@@ -554,6 +492,8 @@ export async function GET(request: Request) {
             currentData: ann.normalized,
             diffSummary: generateDiffSummary(diff),
             severity: diff.severity,
+            detectedAt: new Date(),
+            notifiedAt: null,
           });
         }
 
@@ -564,98 +504,21 @@ export async function GET(request: Request) {
           syncRunId: ann.syncRunId,
           snapshotData: ann.normalized,
           fingerprint: ann.fingerprint,
+          snapshottedAt: new Date(),
         });
         ann.latestSnapshotId = snapshotId;
+        ann.latestSnapshotData = ann.normalized;
       }
     }
 
-    let upsertedCount = 0;
-    const CHUNK = 30;
-
-    // 1. Batch upsert announcements first to avoid Foreign Key constraints on snapshots
-    for (let i = 0; i < finalAnnValues.length; i += CHUNK) {
-      const rawChunk = finalAnnValues.slice(i, i + CHUNK);
-      // Strip non-column fields: housingMgmtNo, normalized
-      const chunk = rawChunk.map(({ housingMgmtNo, normalized, ...rest }) => rest);
-      try {
-        await db
-          .insert(announcements)
-          .values(chunk)
-          .onConflictDoUpdate({
-            target: announcements.announceNo,
-            set: {
-              status: sql`excluded.status`,
-              displayStatus: sql`excluded.display_status`,
-              applyStartDate: sql`excluded.apply_start_date`,
-              applyEndDate: sql`excluded.apply_end_date`,
-              pblancUrl: sql`CASE
-                WHEN excluded.external_source_key LIKE 'myhome_api:%' AND announcements.pblanc_url IS NOT NULL THEN announcements.pblanc_url
-                ELSE excluded.pblanc_url
-              END`,
-              homepageAdres: sql`excluded.homepage_adres`,
-              metadata: sql`excluded.metadata`,
-              externalSourceKey: sql`CASE
-                WHEN excluded.external_source_key LIKE 'myhome_api:%' AND announcements.external_source_key NOT LIKE 'myhome_api:%' THEN announcements.external_source_key
-                ELSE excluded.external_source_key
-              END`,
-              fingerprint: sql`excluded.fingerprint`,
-              latestSnapshotId: sql`excluded.latest_snapshot_id`,
-              // Preserve existing attachment metadata
-              atchmnflSeqNo: sql`COALESCE(announcements.atchmnfl_seq_no, excluded.atchmnfl_seq_no)`,
-              atchmnflSn: sql`COALESCE(announcements.atchmnfl_sn, excluded.atchmnfl_sn)`,
-              updatedAt: sql`now()`,
-            },
-          });
-        upsertedCount += chunk.length;
-      } catch (e: any) {
-        console.error(`[FastSync] Batch ann error:`, e.message);
-        // Fallback: individual upserts
-        for (const ann of chunk) {
-          try {
-            await db
-              .insert(announcements)
-              .values(ann)
-              .onConflictDoUpdate({
-                target: announcements.announceNo,
-                set: {
-                  status: ann.status,
-                  displayStatus: ann.displayStatus,
-                  applyStartDate: ann.applyStartDate,
-                  applyEndDate: ann.applyEndDate,
-                  pblancUrl: sql`CASE
-                    WHEN ${ann.externalSourceKey} LIKE 'myhome_api:%' AND announcements.pblanc_url IS NOT NULL THEN announcements.pblanc_url
-                    ELSE ${ann.pblancUrl}
-                  END`,
-                  homepageAdres: ann.homepageAdres,
-                  metadata: ann.metadata,
-                  externalSourceKey: sql`CASE
-                    WHEN ${ann.externalSourceKey} LIKE 'myhome_api:%' AND announcements.external_source_key NOT LIKE 'myhome_api:%' THEN announcements.external_source_key
-                    ELSE ${ann.externalSourceKey}
-                  END`,
-                  fingerprint: ann.fingerprint,
-                  latestSnapshotId: ann.latestSnapshotId,
-                  updatedAt: new Date(),
-                },
-              });
-            upsertedCount++;
-          } catch (e2: any) {
-            console.error(`[FastSync] Ann ${ann.announceNo}:`, e2.message);
-          }
-        }
-      }
-    }
-
-    // 2. Perform bulk inserts for snapshots & changeEvents now that parent announcements exist
-    if (snapshotsToInsert.length > 0) {
-      for (let i = 0; i < snapshotsToInsert.length; i += CHUNK) {
-        await db.insert(announcementSnapshots).values(snapshotsToInsert.slice(i, i + CHUNK));
-      }
-    }
-    if (eventsToInsert.length > 0) {
-      for (let i = 0; i < eventsToInsert.length; i += CHUNK) {
-        await db.insert(changeEvents).values(eventsToInsert.slice(i, i + CHUNK));
-      }
-    }
+    const helperFields = new Set(["normalized", "providerId", "syncRunId", "name"]);
+    const announcementRecords = finalAnnValues.map((value) =>
+      Object.fromEntries(Object.entries(value).filter(([key]) => !helperFields.has(key))) as AnnouncementRecord
+    );
+    await upsertAnnouncements(announcementRecords);
+    if (snapshotsToInsert.length > 0) await appendSnapshots(snapshotsToInsert);
+    if (eventsToInsert.length > 0) await appendChangeEvents(eventsToInsert);
+    const upsertedCount = announcementRecords.length;
 
     // ─── 6c. Web-to-API Upgrade Fallback ────────────────────────────
     // ponytail: Auto-upgrade previous web-scraped announcements to official API data when it becomes available
@@ -665,15 +528,14 @@ export async function GET(request: Request) {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split("T")[0];
 
-      const webAnns = await db
-        .select()
-        .from(announcements)
-        .where(
-          and(
-            like(announcements.externalSourceKey, "applyhome_web:%"),
-            gte(announcements.announceDate, thirtyDaysAgoStr)
-          )
-        );
+      const webAnns = announcementRecords.filter(
+        (announcement) =>
+          announcement.externalSourceKey?.startsWith("applyhome_web:") &&
+          Boolean(announcement.announceDate && announcement.announceDate >= thirtyDaysAgoStr)
+      );
+      const upgradedRecords: AnnouncementRecord[] = [];
+      const upgradeSnapshots: SnapshotRecord[] = [];
+      const upgradeEvents: ChangeEventRecord[] = [];
 
       if (webAnns.length > 0) {
         console.log(`[FastSync] Found ${webAnns.length} web-sourced announcements to check for API upgrade...`);
@@ -699,69 +561,69 @@ export async function GET(request: Request) {
             );
 
             const snapshotId = randomUUID();
-            await db.transaction(async (tx) => {
-              await tx
-                .update(announcements)
-                .set({
-                  externalSourceKey: apiNorm.externalSourceKey,
-                  fingerprint: apiFingerprint,
-                  latestSnapshotId: snapshotId,
-                  supplyType: apiNorm.supplyType,
-                  status: apiNorm.status,
-                  displayStatus: apiNorm.displayStatus || null,
-                  announceDate: apiNorm.announceDate,
-                  applyStartDate: apiNorm.applyStartDate,
-                  applyEndDate: apiNorm.applyEndDate,
-                  winnerAnnounceDate: apiNorm.winnerAnnounceDate,
-                  contractStartDate: apiNorm.contractStartDate,
-                  contractEndDate: apiNorm.contractEndDate,
-                  moveInDate: apiNorm.moveInDate,
-                  pblancUrl: apiNorm.pblancUrl,
-                  homepageAdres: apiNorm.homepageAdres,
-                  updatedAt: new Date(),
-                })
-                .where(eq(announcements.id, webAnn.id));
-
-              await tx
-                .update(housingProjects)
-                .set({
-                  name: apiNorm.name,
-                  address: apiNorm.address,
-                  builderName: apiNorm.builderName,
-                  developerName: apiNorm.developerName,
-                  totalHouseholds: apiNorm.totalHouseholds,
-                  externalSourceKey: apiNorm.externalSourceKey,
-                  updatedAt: new Date(),
-                })
-                .where(eq(housingProjects.id, webAnn.projectId));
-
-              await tx.insert(announcementSnapshots).values({
-                id: snapshotId,
-                announcementId: webAnn.id,
-                syncRunId: providerSyncRunIds.applyhome_api || randomUUID(),
-                snapshotData: apiNorm,
-                fingerprint: apiFingerprint,
-              });
-
-              if (diff.hasChanged) {
-                await tx.insert(changeEvents).values({
-                  eventType: "SCHEDULE_CHANGED",
-                  entityType: "announcement",
-                  entityId: webAnn.id,
-                  syncRunId: providerSyncRunIds.applyhome_api || null,
-                  previousData: webAnn,
-                  currentData: apiNorm,
-                  diffSummary: `Source upgraded to Official API. ${generateDiffSummary(diff)}`,
-                  severity: "info",
-                });
-              }
+            const upgradeSyncRunId = providerSyncRunIds.applyhome_api || randomUUID();
+            upgradedRecords.push({
+              ...webAnn,
+              projectName: apiNorm.name,
+              projectSlug: apiNorm.slug,
+              address: apiNorm.address,
+              builderName: apiNorm.builderName,
+              developerName: apiNorm.developerName,
+              totalHouseholds: apiNorm.totalHouseholds,
+              projectExternalSourceKey: apiNorm.externalSourceKey,
+              externalSourceKey: apiNorm.externalSourceKey,
+              sourceProviderId: "applyhome_api",
+              fingerprint: apiFingerprint,
+              latestSnapshotId: snapshotId,
+              latestSnapshotData: apiNorm,
+              supplyType: apiNorm.supplyType,
+              status: apiNorm.status,
+              displayStatus: apiNorm.displayStatus || null,
+              announceDate: apiNorm.announceDate,
+              applyStartDate: apiNorm.applyStartDate,
+              applyEndDate: apiNorm.applyEndDate,
+              winnerAnnounceDate: apiNorm.winnerAnnounceDate,
+              contractStartDate: apiNorm.contractStartDate,
+              contractEndDate: apiNorm.contractEndDate,
+              moveInDate: apiNorm.moveInDate,
+              pblancUrl: apiNorm.pblancUrl ?? null,
+              homepageAdres: apiNorm.homepageAdres ?? null,
+              metadata: getSourceMetadata(webAnn, { externalSourceKey: apiNorm.externalSourceKey }),
+              updatedAt: new Date(),
             });
+            upgradeSnapshots.push({
+              id: snapshotId,
+              announcementId: webAnn.id,
+              syncRunId: upgradeSyncRunId,
+              snapshotData: apiNorm,
+              fingerprint: apiFingerprint,
+              snapshottedAt: new Date(),
+            });
+
+            if (diff.hasChanged) {
+              upgradeEvents.push({
+                id: randomUUID(),
+                eventType: "SCHEDULE_CHANGED",
+                entityType: "announcement",
+                entityId: webAnn.id,
+                syncRunId: providerSyncRunIds.applyhome_api || null,
+                previousData: webAnn,
+                currentData: apiNorm,
+                diffSummary: `Source upgraded to Official API. ${generateDiffSummary(diff)}`,
+                severity: "info",
+                detectedAt: new Date(),
+                notifiedAt: null,
+              });
+            }
 
             console.log(`[FastSync] Successfully upgraded ${webAnn.announceNo} to official API.`);
           } catch (e: any) {
             console.log(`[FastSync] Announcement ${webAnn.announceNo} not ready for upgrade: ${e.message}`);
           }
         }
+        if (upgradedRecords.length > 0) await upsertAnnouncements(upgradedRecords);
+        if (upgradeSnapshots.length > 0) await appendSnapshots(upgradeSnapshots);
+        if (upgradeEvents.length > 0) await appendChangeEvents(upgradeEvents);
       }
       } catch (e: any) {
         console.error(`[FastSync] Web-to-API upgrade process failed:`, e.message);
@@ -772,23 +634,26 @@ export async function GET(request: Request) {
 
     // ─── 7. Complete sync runs individually ────────────────────────
     const elapsed = Date.now() - startTime;
-    for (const { provider, label, status } of fetchResults) {
-      const runId = providerSyncRunIds[provider.providerId];
+    for (const { provider, status, error } of fetchResults) {
       const pFetched = fetchResults.find(f => f.provider.providerId === provider.providerId)?.items.length || 0;
       const pNormalized = allNormalized.filter(n => n.providerId === provider.providerId).length;
       const pUpserted = finalAnnValues.filter(ann => ann.externalSourceKey?.startsWith(provider.providerId)).length;
-
-      await db
-        .update(sourceSyncRuns)
-        .set({
+      const run = syncRunMap.get(provider.providerId);
+      if (run) {
+        syncRunMap.set(provider.providerId, {
+          ...run,
           status: status === "success" ? "success" : "failed",
           finishedAt: new Date(),
           totalFetched: pFetched,
           totalNormalized: pNormalized,
           totalUpserted: pUpserted,
-        })
-        .where(eq(sourceSyncRuns.id, runId));
+          totalChanged: eventsToInsert.filter((event) => event.syncRunId === run.id).length,
+          totalErrors: status === "success" ? 0 : 1,
+          errorSummary: error,
+        });
+      }
     }
+    await upsertSyncRuns(Array.from(syncRunMap.values()));
 
     // ─── 8. Expired announcements automated cleanup (3 months / 90 days ago) ───
     try {
@@ -796,26 +661,17 @@ export async function GET(request: Request) {
       ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
       const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().split('T')[0];
 
-      // Find old announcements to delete
-      const oldAnns = await db
-        .select({ id: announcements.id })
-        .from(announcements)
-        .where(
-          and(
-            isNotNull(announcements.applyEndDate),
-            sql`${announcements.applyEndDate} < ${ninetyDaysAgoStr}`
-          )
-        );
+      const cleanupCandidates = new Map(existingRecords.map((announcement) => [announcement.id, announcement]));
+      announcementRecords.forEach((announcement) => cleanupCandidates.set(announcement.id, announcement));
+      const oldAnns = Array.from(cleanupCandidates.values()).filter(
+        (announcement) => announcement.applyEndDate && announcement.applyEndDate < ninetyDaysAgoStr
+      );
 
       if (oldAnns.length > 0) {
         const oldIds = oldAnns.map(a => a.id);
         console.log(`[FastSync] Cleaning up ${oldIds.length} expired announcements older than ${ninetyDaysAgoStr}...`);
         
-        // Delete snapshots & units first to satisfy foreign keys
-        const { announcementSnapshots, announcementUnits } = await import("@/lib/db/schema");
-        await db.delete(announcementSnapshots).where(inArray(announcementSnapshots.announcementId, oldIds));
-        await db.delete(announcementUnits).where(inArray(announcementUnits.announcementId, oldIds));
-        await db.delete(announcements).where(inArray(announcements.id, oldIds));
+        await deleteAnnouncements(oldIds);
         
         console.log(`[FastSync] Finished cleaning up expired announcements.`);
       }
