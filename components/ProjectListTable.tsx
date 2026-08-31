@@ -90,6 +90,56 @@ function restoreSelection(savedValues: string[] | undefined, availableValues: st
   return new Set(restored.length > 0 ? restored : fallbackValues);
 }
 
+type MobileFilterSection = "regions" | "types" | "categories" | "statuses";
+
+interface MobileFilterOptionsProps {
+  label: string;
+  options: string[];
+  selected: Set<string>;
+  onToggle: (value: string) => void;
+  onToggleAll: () => void;
+}
+
+function MobileFilterOptions({ label, options, selected, onToggle, onToggleAll }: MobileFilterOptionsProps) {
+  const allSelected = options.length > 0 && selected.size === options.length;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex min-h-9 items-center justify-between gap-3">
+        <h3 className="text-sm font-bold text-foreground">{label}</h3>
+        <button
+          type="button"
+          onClick={onToggleAll}
+          className="text-xs font-semibold text-primary hover:underline"
+        >
+          {allSelected ? "전체 해제" : "모두 선택"}
+        </button>
+      </div>
+      <div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
+        {options.map((option) => (
+          <label
+            key={option}
+            className={`flex min-h-11 min-w-0 cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-sm transition-colors ${
+              selected.has(option)
+                ? "border-primary/40 bg-primary/10 text-foreground"
+                : "border-border bg-card text-muted-foreground"
+            }`}
+            title={option}
+          >
+            <input
+              type="checkbox"
+              checked={selected.has(option)}
+              onChange={() => onToggle(option)}
+              className="h-4 w-4 shrink-0 accent-primary"
+            />
+            <span className="min-w-0 break-words leading-snug">{option}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt }: Props) {
   const [projects, setProjects] = useState<SerializedProjectAnnouncement[]>(initialProjects);
 
@@ -114,6 +164,25 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
   const [typeFilterOpen, setTypeFilterOpen] = useState(false);
   const [statusFilterOpen, setStatusFilterOpen] = useState(false);
   const [categoryFilterOpen, setCategoryFilterOpen] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [mobileFilterSection, setMobileFilterSection] = useState<MobileFilterSection>("regions");
+
+  useEffect(() => {
+    if (!mobileFiltersOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileFiltersOpen(false);
+    };
+
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [mobileFiltersOpen]);
 
   // Helper to resolve region label
   const getRegionLabel = (ann: SerializedProjectAnnouncement) => {
@@ -320,6 +389,14 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
     }
   };
 
+  const resetFilters = () => {
+    setSelectedRegions(new Set(allRegions));
+    setSelectedTypes(new Set(allTypes));
+    setSelectedStatuses(new Set(allStatuses));
+    setSelectedCategories(new Set(allCategories));
+    setShowHiddenOnly(false);
+  };
+
   // Delete Announcement Handler
   const deleteAnnouncement = async (id: string, name: string) => {
     if (!confirm(`'${name}' 공고를 데이터베이스에서 정말 영구 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
@@ -362,6 +439,26 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
     return selectedRegions.has(r) && selectedTypes.has(t) && selectedStatuses.has(s) && selectedCategories.has(c);
   });
 
+  const activeFilterCount = [
+    selectedRegions.size < allRegions.length,
+    selectedTypes.size < allTypes.length,
+    selectedCategories.size < allCategories.length,
+    selectedStatuses.size < allStatuses.length,
+    showHiddenOnly,
+  ].filter(Boolean).length;
+
+  const mobileFilterTabs: Array<{
+    id: MobileFilterSection;
+    label: string;
+    selected: number;
+    total: number;
+  }> = [
+    { id: "regions", label: "지역", selected: selectedRegions.size, total: allRegions.length },
+    { id: "types", label: "구분", selected: selectedTypes.size, total: allTypes.length },
+    { id: "categories", label: "분류", selected: selectedCategories.size, total: allCategories.length },
+    { id: "statuses", label: "상태", selected: selectedStatuses.size, total: allStatuses.length },
+  ];
+
   return (
     <div className="flex flex-col gap-4">
       {/* Active Filter summary bar for quick reset */}
@@ -378,21 +475,33 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
           <span>•</span>
           <span>검색결과 <strong className="text-primary font-bold">{filteredProjects.length}</strong>개</span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start md:gap-4">
+          <button
+            type="button"
+            aria-controls="mobile-project-filters"
+            aria-expanded={mobileFiltersOpen}
+            onClick={() => setMobileFiltersOpen(true)}
+            className="inline-flex min-h-10 items-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-3 text-sm font-bold text-primary md:hidden"
+          >
+            <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4h18l-7 8v6l-4 2v-8L3 4z" />
+            </svg>
+            <span>필터</span>
+            {activeFilterCount > 0 && (
+              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] text-primary-foreground">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
           <button 
-            onClick={() => {
-              setSelectedRegions(new Set(allRegions));
-              setSelectedTypes(new Set(allTypes));
-              setSelectedStatuses(new Set(allStatuses));
-              setSelectedCategories(new Set(allCategories));
-              setShowHiddenOnly(false);
-            }}
+            onClick={resetFilters}
             className="text-primary hover:underline font-semibold"
           >
-            필터 초기화 (모두 선택)
+            <span className="md:hidden">초기화</span>
+            <span className="hidden md:inline">필터 초기화 (모두 선택)</span>
           </button>
-          <span className="text-muted-foreground/30">|</span>
-          <label className="flex items-center gap-2 font-bold text-foreground cursor-pointer hover:text-primary transition-colors">
+          <span className="hidden text-muted-foreground/30 md:inline">|</span>
+          <label className="hidden items-center gap-2 font-bold text-foreground cursor-pointer hover:text-primary transition-colors md:flex">
             <input 
               type="checkbox" 
               checked={showHiddenOnly} 
@@ -403,6 +512,127 @@ export function ProjectListTable({ initialProjects, kstToday, lastSyncStartedAt 
           </label>
         </div>
       </div>
+
+      {mobileFiltersOpen && (
+        <div className="md:hidden">
+          <button
+            type="button"
+            aria-label="필터 닫기"
+            onClick={() => setMobileFiltersOpen(false)}
+            className="fixed inset-0 z-[60] bg-black/55"
+          />
+          <section
+            id="mobile-project-filters"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mobile-filter-title"
+            className="fixed inset-x-0 bottom-0 z-[70] flex max-h-[85dvh] flex-col overflow-hidden rounded-t-lg border-t bg-background shadow-2xl"
+          >
+            <div className="flex min-h-14 shrink-0 items-center justify-between border-b px-4">
+              <div className="flex items-baseline gap-2">
+                <h2 id="mobile-filter-title" className="text-base font-bold">목록 필터</h2>
+                <span className="text-xs text-muted-foreground">{filteredProjects.length}개</span>
+              </div>
+              <button
+                type="button"
+                aria-label="필터 닫기"
+                title="닫기"
+                onClick={() => setMobileFiltersOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <svg aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="grid shrink-0 grid-cols-4 border-b bg-muted/30 p-1">
+              {mobileFilterTabs.map((filterTab) => (
+                <button
+                  key={filterTab.id}
+                  type="button"
+                  aria-pressed={mobileFilterSection === filterTab.id}
+                  onClick={() => setMobileFilterSection(filterTab.id)}
+                  className={`min-h-12 rounded-md px-1 text-[11px] font-bold transition-colors ${
+                    mobileFilterSection === filterTab.id
+                      ? "bg-background text-primary shadow-sm"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  <span className="block">{filterTab.label}</span>
+                  <span className="block text-[10px] font-medium">{filterTab.selected}/{filterTab.total}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+              {mobileFilterSection === "regions" && (
+                <MobileFilterOptions
+                  label="지역 선택"
+                  options={allRegions}
+                  selected={selectedRegions}
+                  onToggle={toggleRegion}
+                  onToggleAll={toggleAllRegions}
+                />
+              )}
+              {mobileFilterSection === "types" && (
+                <MobileFilterOptions
+                  label="구분 선택"
+                  options={allTypes}
+                  selected={selectedTypes}
+                  onToggle={toggleType}
+                  onToggleAll={toggleAllTypes}
+                />
+              )}
+              {mobileFilterSection === "categories" && (
+                <MobileFilterOptions
+                  label="공고 분류 선택"
+                  options={allCategories}
+                  selected={selectedCategories}
+                  onToggle={toggleCategory}
+                  onToggleAll={toggleAllCategories}
+                />
+              )}
+              {mobileFilterSection === "statuses" && (
+                <MobileFilterOptions
+                  label="상태 선택"
+                  options={allStatuses}
+                  selected={selectedStatuses}
+                  onToggle={toggleStatus}
+                  onToggleAll={toggleAllStatuses}
+                />
+              )}
+
+              <label className="mt-4 flex min-h-11 cursor-pointer items-center gap-3 border-t pt-4 text-sm font-semibold text-foreground">
+                <input
+                  type="checkbox"
+                  checked={showHiddenOnly}
+                  onChange={(event) => setShowHiddenOnly(event.target.checked)}
+                  className="h-4 w-4 accent-primary"
+                />
+                <span>숨긴 공고만 모아보기 ({hiddenIds.size})</span>
+              </label>
+            </div>
+
+            <div className="grid shrink-0 grid-cols-[auto_1fr] gap-2 border-t bg-background px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="min-h-11 rounded-md border px-4 text-sm font-bold text-foreground"
+              >
+                초기화
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileFiltersOpen(false)}
+                className="min-h-11 rounded-md bg-primary px-4 text-sm font-bold text-primary-foreground"
+              >
+                {filteredProjects.length}개 공고 보기
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       <div className="w-full pb-4 max-w-full overflow-x-auto">
         {/* Desktop View: Table */}

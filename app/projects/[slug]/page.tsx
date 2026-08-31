@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { StatusBadge } from "@/components/StatusBadge";
+import { getApplyHomeAttachmentUrl, hasResolvedAttachmentLookup } from "@/lib/attachments";
 import { getProjectBySlug, replaceAnnouncementUnits, updateAnnouncement } from "@/lib/sheets/repository";
 import { getApplyHomeUrl, getDynamicStatus, getSourceBadge } from "@/lib/utils";
 import { notFound } from "next/navigation";
@@ -16,8 +17,7 @@ async function getProjectDetails(slug: string) {
   
   if (latestAnn && latestAnn.externalSourceKey && (latestAnn.externalSourceKey.startsWith("applyhome_api") || latestAnn.externalSourceKey.startsWith("applyhome_web"))) {
     const hasUnits = latestAnn.units && latestAnn.units.length > 0;
-    // Check if attachment metadata exists and is not null
-    const hasAttachments = latestAnn.atchmnflSeqNo !== null && latestAnn.atchmnflSeqNo !== undefined;
+    const hasAttachments = hasResolvedAttachmentLookup(latestAnn.atchmnflSeqNo, latestAnn.atchmnflSn);
 
     if (!hasUnits || !hasAttachments) {
       console.log(`[LazyLoad] Details missing for ${project.name}. Fetching on-demand...`);
@@ -110,6 +110,14 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
   }
 
   const latestAnn = project.announcements[0];
+  const attachmentUrl = latestAnn
+    ? getApplyHomeAttachmentUrl({
+        houseManageNo: project.housingMgmtNo,
+        pblancNo: latestAnn.announceNo,
+        seqNo: latestAnn.atchmnflSeqNo,
+        sn: latestAnn.atchmnflSn,
+      })
+    : null;
   const { status: currentStatus, displayStatus: currentDisplayStatus } = getDynamicStatus(
     latestAnn?.applyStartDate,
     latestAnn?.applyEndDate
@@ -238,21 +246,25 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               <button className="w-full rounded-lg bg-primary py-3 text-sm font-bold text-primary-foreground shadow transition-all hover:bg-primary/90">
                 알림 받기 (팔로우)
               </button>
-              {latestAnn?.pblancUrl || (latestAnn?.atchmnflSeqNo && latestAnn?.atchmnflSn && latestAnn.atchmnflSeqNo !== "NONE" && latestAnn.atchmnflSn !== "NONE") || project.housingMgmtNo === "2026000098" ? (
+              {attachmentUrl ? (
                 <a 
-                  href={
-                    (latestAnn?.atchmnflSeqNo && latestAnn?.atchmnflSn && latestAnn.atchmnflSeqNo !== "NONE" && latestAnn.atchmnflSn !== "NONE") 
-                    ? `https://static.applyhome.co.kr/ai/aia/getAtchmnfl.do?houseManageNo=${project.housingMgmtNo}&pblancNo=${latestAnn.announceNo}&atchmnflSeqNo=${latestAnn.atchmnflSeqNo}&atchmnflSn=${latestAnn.atchmnflSn}`
-                    : project.housingMgmtNo === "2026000098"
-                    ? `https://static.applyhome.co.kr/ai/aia/getAtchmnfl.do?houseManageNo=2026000098&pblancNo=2026000098&atchmnflSeqNo=1778246&atchmnflSn=7`
-                    : latestAnn.pblancUrl || "#"
-                  } 
+                  href={attachmentUrl}
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-2 w-full rounded-lg bg-accent/50 border-2 border-dashed border-primary/20 py-3 text-sm font-bold text-center transition-all hover:bg-accent hover:border-primary/40"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   모집공고문(PDF) 다운로드
+                </a>
+              ) : latestAnn?.pblancUrl ? (
+                <a
+                  href={latestAnn.pblancUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full rounded-lg bg-accent/50 border-2 border-dashed border-primary/20 py-3 text-sm font-bold text-center transition-all hover:bg-accent hover:border-primary/40"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+                  공고 원문 보기
                 </a>
               ) : (
                 <button className="flex items-center justify-center gap-2 w-full rounded-lg border-2 border-dashed py-3 text-sm font-bold opacity-50 cursor-not-allowed text-muted-foreground">

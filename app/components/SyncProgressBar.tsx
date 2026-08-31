@@ -3,16 +3,24 @@
 import { useEffect, useState } from "react";
 
 export function SyncProgressBar() {
-  const [status, setStatus] = useState<{ total: number; completed: number; percentage: number; isFinished: boolean } | null>(null);
+  const [status, setStatus] = useState<{
+    total: number;
+    completed: number;
+    percentage: number;
+    isActive: boolean;
+    isFinished: boolean;
+  } | null>(null);
 
   useEffect(() => {
     const fetchStatus = async () => {
       try {
         const res = await fetch("/api/sync/status");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         setStatus(data);
       } catch (e) {
         console.error("Failed to fetch sync status", e);
+        setStatus(null);
       }
     };
 
@@ -21,7 +29,7 @@ export function SyncProgressBar() {
     return () => clearInterval(interval);
   }, []);
 
-  if (!status || status.isFinished) return null;
+  if (!status || !status.isActive || status.isFinished) return null;
 
   return (
     <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 w-full md:w-[350px] animate-in fade-in slide-in-from-top duration-500">
@@ -31,7 +39,7 @@ export function SyncProgressBar() {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
           </span>
-          PDF 다운로드 링크 최적화 중...
+          데이터 및 공고문 링크 확인 중...
         </span>
         <span className="text-xs font-mono font-bold text-blue-600">{status.percentage}%</span>
       </div>
@@ -42,7 +50,7 @@ export function SyncProgressBar() {
         />
       </div>
       <div className="mt-1.5 text-[10px] text-blue-500 text-right">
-        {status.completed} / {status.total} 공고 완료
+        청약홈 공고문 링크 {status.completed} / {status.total}건 확인
       </div>
     </div>
   );

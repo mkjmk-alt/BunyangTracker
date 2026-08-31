@@ -190,6 +190,10 @@ export class ApplyHomeApiProvider implements SourceProvider<ApplyHomeApt> {
 
     try {
       const response = await fetch(url, { signal: createTimeoutSignal(API_FETCH_TIMEOUT_MS) });
+      if (!response.ok) {
+        console.warn(`[ApplyHome] Attachment page returned HTTP ${response.status} for ${houseManageNo}`);
+        return { seqNo: null, sn: null };
+      }
       const text = await response.text();
       
       const regexes = [
@@ -211,8 +215,9 @@ export class ApplyHomeApiProvider implements SourceProvider<ApplyHomeApt> {
       }
       return { seqNo: "NONE", sn: "NONE" };
     } catch (e) {
-      console.error(`[ApplyHome] Failed to discover attachments for ${houseManageNo}:`, e);
-      return { seqNo: "NONE", sn: "NONE" };
+      const message = e instanceof Error ? e.message : String(e);
+      console.warn(`[ApplyHome] Attachment lookup deferred for ${houseManageNo}: ${message}`);
+      return { seqNo: null, sn: null };
     }
   }
 

@@ -39,26 +39,18 @@ async function main() {
 
       console.log(`Discovery result: seqNo = ${attachments.seqNo}, sn = ${attachments.sn}`);
 
-      // If we got a valid result (either actual keys or "NONE")
       if (attachments.seqNo && attachments.sn) {
         updates.push({ ...ann, atchmnflSeqNo: attachments.seqNo, atchmnflSn: attachments.sn, updatedAt: new Date() });
         
         console.log(` Successfully updated announcement ${ann.announceNo}`);
       } else {
-        // Fallback: If it silently failed/timed out, we can force-set to "NONE"
-        // to prevent getting stuck in future sync checks.
-        updates.push({ ...ann, atchmnflSeqNo: "NONE", atchmnflSn: "NONE", updatedAt: new Date() });
-        
-        console.log(` Force-updated announcement ${ann.announceNo} to NONE due to discovery failure.`);
+        console.warn(` Attachment lookup deferred for ${ann.announceNo}; it will be retried later.`);
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(`Error discovering attachments for ${ann.announceNo}:`, message);
       
-      // Fallback: Force-set to "NONE" on exception as well to avoid being stuck forever
-      updates.push({ ...ann, atchmnflSeqNo: "NONE", atchmnflSn: "NONE", updatedAt: new Date() });
-      
-      console.log(` Force-updated announcement ${ann.announceNo} to NONE due to error.`);
+      console.warn(` Announcement ${ann.announceNo} was left unchanged for a later retry.`);
     }
 
     // Add a tiny delay between requests to avoid rate limits

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { hasResolvedAttachmentLookup } from "@/lib/attachments";
 import {
   appendChangeEvents,
   appendSnapshots,
@@ -365,7 +366,7 @@ export async function GET(request: Request) {
         const discoveryTargets = annValues.filter(ann => {
           if (ann.externalSourceKey.startsWith("applyhome_api") || ann.externalSourceKey.startsWith("applyhome_web")) {
             const existing = existingMap.get(ann.announceNo);
-            if (!existing || !existing.atchmnflSeqNo) {
+            if (!existing || !hasResolvedAttachmentLookup(existing.atchmnflSeqNo, existing.atchmnflSn)) {
               return true;
             } else {
               ann.atchmnflSeqNo = existing.atchmnflSeqNo;
@@ -390,12 +391,12 @@ export async function GET(request: Request) {
                     ann.pblancUrl || undefined,
                     ann.supplyType
                   );
-                  ann.atchmnflSeqNo = attachments.seqNo || "NONE";
-                  ann.atchmnflSn = attachments.sn || "NONE";
+                  ann.atchmnflSeqNo = attachments.seqNo;
+                  ann.atchmnflSn = attachments.sn;
                 } catch (err: any) {
                   console.error(`[FastSync] Attachment discovery failed for ${ann.announceNo}:`, err.message);
-                  ann.atchmnflSeqNo = "NONE";
-                  ann.atchmnflSn = "NONE";
+                  ann.atchmnflSeqNo = null;
+                  ann.atchmnflSn = null;
                 }
               })
             );
